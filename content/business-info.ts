@@ -8,12 +8,16 @@
 // matching brand, FixVise is today's fulfillment provider, but the brief is
 // explicit that CPRNME's architecture must stay provider-agnostic so another
 // repair provider can be added later without rewriting copy sitewide. Add a
-// provider here; every place that names one (currently just the footer)
-// reads from this list instead of hardcoding a name.
+// provider here; the one place that credits one (the footer) reads from
+// this list instead of hardcoding a name.
+//
+// Per direction: the provider's brand name isn't used in site copy at all —
+// only a small "Powered by <domain>" credit, so `domain` is what actually
+// renders. `name` is kept for code comments/internal clarity only.
 
 export type FulfillmentProvider = {
   name: string;
-  role: string; // short description of what they do, e.g. "repair and scheduling"
+  domain: string; // what actually renders, e.g. "fixvise.com"
 };
 
 export const businessInfo = {
@@ -49,22 +53,17 @@ export const businessInfo = {
   },
 
   fulfillmentProviders: [
-    { name: "FixVise", role: "repair and scheduling" },
+    { name: "FixVise", domain: "fixvise.com" },
   ] satisfies FulfillmentProvider[],
 };
 
-// One sentence, written to be true regardless of how many providers exist:
-// names the current provider(s) when there's exactly one (today), and falls
-// back to a still-honest but provider-agnostic sentence if a second one is
-// ever added — so adding a provider means editing the array above, not this
-// sentence or every page that used to name FixVise directly.
-export function getFulfillmentLine(): string {
+// A minimal "Powered by <domain>" credit — no provider brand name, no
+// description of the relationship, just the domain. Returns null when that
+// wouldn't be unambiguous (no provider yet, or more than one — a footer
+// credit line isn't the place to start listing multiple partners).
+export function getFulfillmentCredit(): { text: string; href: string } | null {
   const providers = businessInfo.fulfillmentProviders;
-  if (providers.length === 1) {
-    return `Repairs are completed by ${providers[0].name}, an independent repair provider connected to CPRNME.`;
-  }
-  if (providers.length > 1) {
-    return "Repairs are completed by one of CPRNME's independent repair provider partners.";
-  }
-  return "Repairs are completed by an independent repair provider connected to CPRNME.";
+  if (providers.length !== 1) return null;
+  const domain = providers[0].domain;
+  return { text: `Powered by ${domain}`, href: `https://${domain}` };
 }

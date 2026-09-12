@@ -1,11 +1,12 @@
-import { businessInfo, getFulfillmentLine } from "@/content/business-info";
+import { businessInfo, getFulfillmentCredit } from "@/content/business-info";
 
-// Server component. Phone number and the CPRNME/FixVise relationship line
-// are now real, confirmed facts (see content/business-info.ts) — everything
-// else here stays deliberately minimal: no address, hours, or specific
-// service-area names, since the city list within "DFW area" hasn't been
-// provided yet.
+// Server component. Deliberately minimal: no address or hours, since those
+// aren't confirmed. The fulfillment provider is credited only as a small
+// "Powered by <domain>" line, per direction — no provider brand name or
+// description of the relationship appears anywhere on the site.
 export function SiteFooter() {
+  const credit = getFulfillmentCredit();
+
   return (
     <footer className="site-footer">
       <div className="container footer-inner">
@@ -22,9 +23,13 @@ export function SiteFooter() {
           <a href="/#faq">FAQ</a>
           <a href="/repairs">All Repairs</a>
         </nav>
-        <p className="footer-note">
-          CPRNME helps you find and start the right phone repair. {getFulfillmentLine()}
-        </p>
+        {credit && (
+          <p className="footer-credit">
+            <a href={credit.href} rel="noopener">
+              {credit.text}
+            </a>
+          </p>
+        )}
       </div>
     </footer>
   );

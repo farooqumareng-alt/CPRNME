@@ -637,3 +637,13 @@ button {
   color: var(--cp-ink-faint);
   max-width: 60ch;
 }
+.footer-credit {
+  font-size: 12px;
+}
+.footer-credit a {
+  color: var(--cp-ink-faint);
+  text-decoration: none;
+}
+.footer-credit a:hover {
+  color: var(--cp-ink-soft);
+}
