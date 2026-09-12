@@ -1,10 +1,12 @@
 import { businessInfo, getFulfillmentCredit } from "@/content/business-info";
 import { TrackedLink } from "@/components/TrackedLink";
+import { FindRepairLink } from "@/components/FindRepairLink";
 
-// Server component. Deliberately minimal: no address or hours, since those
-// aren't confirmed. The fulfillment provider is credited only as a small
-// "Powered by <domain>" line, per direction — no provider brand name or
-// description of the relationship appears anywhere on the site.
+// Server component apart from the Find My Repair link (see
+// FindRepairLink.tsx). Deliberately minimal: no address or hours, since
+// those aren't confirmed. The fulfillment provider is credited only as a
+// small "Powered by <domain>" line, per direction — no provider brand name
+// or description of the relationship appears anywhere on the site.
 export function SiteFooter() {
   const credit = getFulfillmentCredit();
 
@@ -21,7 +23,7 @@ export function SiteFooter() {
           </p>
         </div>
         <nav aria-label="Footer">
-          <a href="/#find-repair">Find My Repair</a>
+          <FindRepairLink>Find My Repair</FindRepairLink>
           <a href="/#how-it-works">How It Works</a>
           <a href="/#faq">FAQ</a>
           <a href="/repairs">All Repairs</a>

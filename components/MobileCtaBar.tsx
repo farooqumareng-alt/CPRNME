@@ -1,8 +1,10 @@
 import { businessInfo } from "@/content/business-info";
 import { TrackedLink } from "@/components/TrackedLink";
+import { FindRepairLink } from "@/components/FindRepairLink";
 
-// Server component apart from the tracked Call link. "Call" was withheld
-// until a real phone number existed (Phase 2, Section 8); it now does.
+// Server component apart from the tracked Call link and the Find My Repair
+// link (see FindRepairLink.tsx). "Call" was withheld until a real phone
+// number existed (Phase 2, Section 8); it now does.
 export function MobileCtaBar() {
   return (
     <div className="mobile-cta-bar">
@@ -14,9 +16,9 @@ export function MobileCtaBar() {
       >
         Call
       </TrackedLink>
-      <a href="/#find-repair" className="btn btn-primary">
+      <FindRepairLink className="btn btn-primary">
         Find My Repair
-      </a>
+      </FindRepairLink>
     </div>
   );
 }
