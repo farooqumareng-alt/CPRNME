@@ -78,7 +78,7 @@ export default function IPhoneBatteryReplacementPage() {
             repair. If your phone is several years old, it&rsquo;s worth a
             quick look at{" "}
             <a href="/guides/repair-vs-replace">Repair vs. Replace</a> before
-            booking — sometimes a battery is the right fix, sometimes it&rsquo;s
+            deciding — sometimes a battery is the right fix, sometimes it&rsquo;s
             not, and that depends on more than just the battery.
           </p>
         </div>

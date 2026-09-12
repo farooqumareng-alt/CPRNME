@@ -38,9 +38,13 @@ function ProblemSelectorFallback() {
 //     (correction #5)
 //   - a decision-support section ("repair or replace") instead of pushing
 //     straight to booking (correction #8)
-//   - the CPRNME -> FixVise handoff is described functionally in "How it
-//     works" without naming FixVise or asserting a legal relationship
-//     (correction #7 — wording still pending your confirmation)
+//   - "How it works" step 4 (originally: "connected... through our
+//     scheduling partner") was rewritten during the Phase 10 conversion
+//     audit — that described a live FixVise handoff CPRNME no longer has
+//     any relationship with beyond the footer credit, and promised a
+//     booking/scheduling capability that doesn't exist yet. Now describes
+//     what actually happens: the ZIP step and demand-intent recording that
+//     ship with the real backend (components/ProblemSelector.tsx).
 export default function HomePage() {
   return (
     <>
@@ -80,8 +84,15 @@ export default function HomePage() {
             cracked screen or dead charging port needs the same fix.
           </li>
           <li>
-            <strong>You&rsquo;re connected to complete the details.</strong> Location
-            and scheduling happen next, through our scheduling partner.
+            <strong>Tell us your ZIP code.</strong> Repair options can vary by
+            area, so this is what lets us look at what&rsquo;s actually near
+            you.
+          </li>
+          <li>
+            <strong>We record your request.</strong> CPRNME is a repair
+            discovery service — right now this step is about capturing real
+            repair demand by location, not an instant match or a live
+            booking. There&rsquo;s no appointment to manage on your end yet.
           </li>
         </ol>
       </section>
@@ -117,8 +128,8 @@ export default function HomePage() {
             <summary>Can someone repair my phone at my house?</summary>
             <p>
               That depends on what&rsquo;s available where you are. Once you tell
-              us your device and the problem, the next step will show you the
-              service options that actually apply to you.
+              us your device, the problem, and your ZIP code, we&rsquo;ll have
+              what we need to look at what&rsquo;s actually near you.
             </p>
           </details>
           <details className="faq-item">

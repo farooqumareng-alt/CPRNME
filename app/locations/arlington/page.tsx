@@ -21,8 +21,7 @@ export default function ArlingtonLocationPage() {
         <>
           CPRNME helps Arlington-area customers find the right phone repair.
           Tell us your device, the problem, and your ZIP code, and
-          we&rsquo;ll show you what&rsquo;s actually available before you
-          book anything.
+          we&rsquo;ll show you what&rsquo;s actually available in your area.
         </>
       }
       localHeading="Arlington sits right between Dallas and Fort Worth"
@@ -42,7 +41,7 @@ export default function ArlingtonLocationPage() {
         {
           question: "Does CPRNME serve every part of Arlington?",
           answer:
-            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available before you book anything.",
+            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available in your area.",
         },
         {
           question: "Do I need to bring my phone somewhere?",

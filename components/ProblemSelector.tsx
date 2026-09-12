@@ -117,6 +117,7 @@ export function ProblemSelector() {
               aria-pressed={deviceId === d.id}
               onClick={() => {
                 setDeviceId(d.id);
+                setSubmitState("idle");
                 track("device_selected", { device: d.id });
               }}
             >
@@ -204,9 +205,9 @@ export function ProblemSelector() {
           </button>
           {submitState === "done" && (
             <p className="selector-note" role="status">
-              Got it — request recorded. This is a design preview, so the connection
-              that completes your booking isn&rsquo;t live yet. That comes online in a
-              later phase.
+              Got it — request recorded. CPRNME is still early: this tells us there&rsquo;s
+              real demand for a repair like yours in your area, but the next step —
+              confirming and scheduling an actual repair — isn&rsquo;t live yet.
             </p>
           )}
           {submitState === "error" && (

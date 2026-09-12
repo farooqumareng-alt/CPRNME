@@ -21,8 +21,7 @@ export default function GranburyLocationPage() {
         <>
           CPRNME helps Granbury-area customers find the right phone repair.
           Tell us your device, the problem, and your ZIP code, and
-          we&rsquo;ll show you what&rsquo;s actually available before you
-          book anything.
+          we&rsquo;ll show you what&rsquo;s actually available in your area.
         </>
       }
       localHeading="Granbury is the farthest-southwest city CPRNME covers"
@@ -41,7 +40,7 @@ export default function GranburyLocationPage() {
         {
           question: "Does CPRNME serve every part of Granbury?",
           answer:
-            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available before you book anything.",
+            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available in your area.",
         },
         {
           question: "Do I need to bring my phone somewhere?",

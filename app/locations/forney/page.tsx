@@ -21,8 +21,7 @@ export default function ForneyLocationPage() {
         <>
           CPRNME helps Forney-area customers find the right phone repair.
           Tell us your device, the problem, and your ZIP code, and
-          we&rsquo;ll show you what&rsquo;s actually available before you
-          book anything.
+          we&rsquo;ll show you what&rsquo;s actually available in your area.
         </>
       }
       localHeading="Forney has grown quickly along the I-20 corridor"
@@ -39,7 +38,7 @@ export default function ForneyLocationPage() {
         {
           question: "Does CPRNME serve every part of Forney?",
           answer:
-            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available before you book anything.",
+            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available in your area.",
         },
         {
           question: "Do I need to bring my phone somewhere?",

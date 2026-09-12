@@ -21,8 +21,7 @@ export default function NorthRichlandHillsLocationPage() {
         <>
           CPRNME helps North Richland Hills-area customers find the right
           phone repair. Tell us your device, the problem, and your ZIP
-          code, and we&rsquo;ll show you what&rsquo;s actually available
-          before you book anything.
+          code, and we&rsquo;ll show you what&rsquo;s actually available in your area.
         </>
       }
       localHeading="North Richland Hills sits among Tarrant County's Mid-Cities"
@@ -40,7 +39,7 @@ export default function NorthRichlandHillsLocationPage() {
         {
           question: "Does CPRNME serve every part of North Richland Hills?",
           answer:
-            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available before you book anything.",
+            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available in your area.",
         },
         {
           question: "Do I need to bring my phone somewhere?",

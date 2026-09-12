@@ -21,8 +21,7 @@ export default function GrapevineLocationPage() {
         <>
           CPRNME helps Grapevine-area customers find the right phone
           repair. Tell us your device, the problem, and your ZIP code, and
-          we&rsquo;ll show you what&rsquo;s actually available before you
-          book anything.
+          we&rsquo;ll show you what&rsquo;s actually available in your area.
         </>
       }
       localHeading="Grapevine sits right at DFW Airport's front door"
@@ -40,7 +39,7 @@ export default function GrapevineLocationPage() {
         {
           question: "Does CPRNME serve every part of Grapevine?",
           answer:
-            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available before you book anything.",
+            "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available in your area.",
         },
         {
           question: "Do I need to bring my phone somewhere?",
