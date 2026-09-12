@@ -13,7 +13,7 @@ export function SiteFooter() {
       <div className="container footer-inner">
         <div>
           <p className="footer-logo">CPRNME</p>
-          <p className="footer-tagline">Cell Phone Repair Near Me.</p>
+          <p className="footer-tagline">{businessInfo.fullName}.</p>
           <p className="footer-phone">
             <TrackedLink event="call_click" eventData={{ location: "footer" }} href={`tel:${businessInfo.phone.e164}`}>
               {businessInfo.phone.display}

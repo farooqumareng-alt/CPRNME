@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import { ProblemSelector } from "@/components/ProblemSelector";
 import { pageMetadata } from "@/content/seo";
+import { businessInfo } from "@/content/business-info";
 
 export const metadata = pageMetadata({
-  title: "CPRNME — Cell Phone Repair Near Me",
+  title: `CPRNME — ${businessInfo.fullName}`,
   description:
     "Tell us your device and what's wrong with it, and CPRNME will help you find the right phone repair.",
   path: "/",
@@ -44,7 +45,7 @@ export default function HomePage() {
   return (
     <>
       <section className="hero container">
-        <h1>Cell Phone Repair Near Me</h1>
+        <h1>{businessInfo.fullName}</h1>
         <p className="hero-tagline">
           Tell us about your phone, and we&rsquo;ll help you find the right repair
           — and the clearest way to get it done.
