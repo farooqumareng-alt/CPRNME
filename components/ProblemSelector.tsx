@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { track } from "@vercel/analytics";
 import { getAnonSessionId } from "@/lib/session-id";
+import { isBuiltLocationSlug } from "@/content/location-pages";
 
 // ---- Data -------------------------------------------------------------
 // `followUp` is defined in the type but never populated here on purpose:
@@ -62,6 +63,16 @@ export function ProblemSelector() {
   const device = devices.find((d) => d.id === deviceId);
   const problem = problems.find((p) => p.id === problemId);
 
+  // If this visitor arrived via a location page's "Find My Repair" CTA
+  // (?from=<slug>), that's real provenance worth recording as the
+  // originating page — this selector only lives at "/", so pathname alone
+  // would otherwise always report "/" no matter where the journey started.
+  // Only a slug matching a real, built location page is trusted; anything
+  // else falls back to the actual pathname rather than being recorded as-is.
+  const fromSlug = searchParams.get("from");
+  const originPage =
+    fromSlug && isBuiltLocationSlug(fromSlug) ? `/locations/${fromSlug}` : pathname || "/";
+
   async function handleContinue() {
     const trimmedZip = zip.trim();
     if (!/^\d{5}$/.test(trimmedZip)) {
@@ -83,7 +94,7 @@ export function ProblemSelector() {
           device: deviceId,
           problem: problemId,
           zip: trimmedZip,
-          sourcePage: pathname || "/",
+          sourcePage: originPage,
           sessionId: getAnonSessionId(),
         }),
       });

@@ -56,6 +56,16 @@ export const builtLocationSlugs: Record<string, string> = {
   "Haltom City": "haltom-city",
 };
 
+// Reverse check used to validate a slug arriving from a URL (e.g. the
+// homepage's ?from= param) against real, built location pages — so a
+// malformed or made-up value never gets treated as a legitimate
+// originating page. See components/LocationPageTemplate.tsx and
+// components/ProblemSelector.tsx.
+const builtLocationSlugSet = new Set(Object.values(builtLocationSlugs));
+export function isBuiltLocationSlug(slug: string): boolean {
+  return builtLocationSlugSet.has(slug);
+}
+
 export function getBuiltLocationSlug(cityName: string): string | undefined {
   return builtLocationSlugs[cityName];
 }

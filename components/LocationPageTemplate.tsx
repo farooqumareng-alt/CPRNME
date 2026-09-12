@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { getBuiltLocationSlug } from "@/content/location-pages";
 
 // The shared technical/structural template Dallas and Fort Worth proved
 // out — extracted so the next 9 cities reuse the *pattern*, not prose.
@@ -26,6 +27,15 @@ export function LocationPageTemplate({
   localContext: ReactNode; // the bespoke, verified local paragraph(s)
   faqs: LocationFaq[];
 }) {
+  // Real provenance, not a fabricated field: this is genuinely the page the
+  // visitor was on right before reaching the selector. cityLabel is always
+  // "<City>, TX" (see any app/locations/*/page.tsx call site) and every
+  // built city is registered in builtLocationSlugs, so the lookup should
+  // always succeed — the fallback just means "don't attach one" rather than
+  // ever guessing.
+  const citySlug = getBuiltLocationSlug(cityLabel.replace(/,\s*TX$/, ""));
+  const findRepairHref = citySlug ? `/?from=${citySlug}#find-repair` : "/#find-repair";
+
   return (
     <>
       <nav aria-label="Breadcrumb" className="breadcrumbs container">
@@ -77,7 +87,7 @@ export function LocationPageTemplate({
 
       <section className="section container final-cta">
         <h2>Ready to find your repair?</h2>
-        <a href="/#find-repair" className="btn btn-primary">
+        <a href={findRepairHref} className="btn btn-primary">
           Find My Repair
         </a>
       </section>
