@@ -1,4 +1,5 @@
 import { businessInfo, getFulfillmentCredit } from "@/content/business-info";
+import { TrackedLink } from "@/components/TrackedLink";
 
 // Server component. Deliberately minimal: no address or hours, since those
 // aren't confirmed. The fulfillment provider is credited only as a small
@@ -14,7 +15,9 @@ export function SiteFooter() {
           <p className="footer-logo">CPRNME</p>
           <p className="footer-tagline">Cell Phone Repair Near Me.</p>
           <p className="footer-phone">
-            <a href={`tel:${businessInfo.phone.e164}`}>{businessInfo.phone.display}</a>
+            <TrackedLink event="call_click" eventData={{ location: "footer" }} href={`tel:${businessInfo.phone.e164}`}>
+              {businessInfo.phone.display}
+            </TrackedLink>
           </p>
         </div>
         <nav aria-label="Footer">

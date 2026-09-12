@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { track } from "@vercel/analytics";
 
 // ---- Data -------------------------------------------------------------
 // `followUp` is defined in the type but never populated here on purpose:
@@ -66,7 +67,10 @@ export function ProblemSelector() {
               type="button"
               className={`chip${deviceId === d.id ? " selected" : ""}`}
               aria-pressed={deviceId === d.id}
-              onClick={() => setDeviceId(d.id)}
+              onClick={() => {
+                setDeviceId(d.id);
+                track("device_selected", { device: d.id });
+              }}
             >
               {d.label}
             </button>
@@ -87,6 +91,7 @@ export function ProblemSelector() {
                 onClick={() => {
                   setProblemId(p.id);
                   setShowNote(false);
+                  track("problem_selected", { device: deviceId ?? "unknown", problem: p.id });
                 }}
               >
                 <span aria-hidden="true">{p.icon}</span>
@@ -112,7 +117,14 @@ export function ProblemSelector() {
             Next, we&rsquo;ll ask where you&rsquo;re located and show you the repair
             options available there.
           </p>
-          <button type="button" className="btn btn-primary" onClick={() => setShowNote(true)}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setShowNote(true);
+              track("handoff_click", { device: deviceId ?? "unknown", problem: problemId ?? "unknown" });
+            }}
+          >
             Continue
           </button>
           {showNote && (

@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope, Public_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { businessInfo } from "@/content/business-info";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -61,6 +63,8 @@ export default function RootLayout({
         <main id="main-content">{children}</main>
         <SiteFooter />
         <MobileCtaBar />
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
