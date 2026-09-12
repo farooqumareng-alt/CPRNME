@@ -130,11 +130,14 @@ function AdminHeader() {
       <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--cp-ink-faint)" }}>
         CPRNME Admin
       </span>
-      <form action="/admin/logout" method="POST">
-        <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>
-          Log out
-        </button>
-      </form>
+      <nav style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 13 }}>
+        <a href="/admin/pricing">Pricing</a>
+        <form action="/admin/logout" method="POST">
+          <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>
+            Log out
+          </button>
+        </form>
+      </nav>
     </div>
   );
 }

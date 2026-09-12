@@ -7,7 +7,7 @@ import { getAnonSessionId } from "@/lib/session-id";
 import { isBuiltLocationSlug } from "@/content/location-pages";
 import { getModelsForFamily, type DeviceFamily, type DeviceModel } from "@/content/device-catalog";
 import { problems as problemOptions } from "@/content/repair-taxonomy";
-import { resolveRepair } from "@/content/repair-resolution";
+import type { ResolutionResult } from "@/lib/repair-resolution-server";
 
 // ---- Data -------------------------------------------------------------
 // Problem labels/ids come from content/repair-taxonomy.ts (the single
@@ -33,8 +33,9 @@ const devices = [
 
 // Cents -> "$149" (or "$149.50" when the price isn't a whole dollar amount).
 // The only place a price is ever formatted for display — every number it
-// receives came from content/repair-pricing.ts's getActivePrice(), never a
-// literal in this component.
+// receives came from the server's /api/intent response (ultimately
+// lib/pricing-data.ts's getActiveCustomerPrice()), never a literal in this
+// component. This component never queries pricing data itself.
 function formatPrice(cents: number): string {
   const dollars = cents / 100;
   return `$${dollars % 1 === 0 ? dollars.toFixed(0) : dollars.toFixed(2)}`;
@@ -82,6 +83,7 @@ export function ProblemSelector() {
   const [contactValue, setContactValue] = useState("");
   const [quoteState, setQuoteState] = useState<QuoteState>("idle");
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [resolution, setResolution] = useState<ResolutionResult | null>(null);
 
   const device = devices.find((d) => d.id === deviceId);
   const problem = problems.find((p) => p.id === problemId);
@@ -100,17 +102,12 @@ export function ProblemSelector() {
     : familyModels;
   const groupedModels = groupBySeries(filteredModels);
 
-  // Pure function of (model, problem) — never a claim about what the
-  // customer will actually see until submitState is "done". Computed here
-  // (not stored in state) since it has no side effects and nothing here
-  // ever mutates repair-eligibility.ts or repair-pricing.ts at runtime.
-  const resolution = problem ? resolveRepair(modelId, problem.id) : null;
-
   function resetSubmission() {
     setSubmitState("idle");
     setIntentId(null);
     setQuoteState("idle");
     setContactValue("");
+    setResolution(null);
   }
 
   // If this visitor arrived via a location page's "Find My Repair" CTA
@@ -156,6 +153,9 @@ export function ProblemSelector() {
       if (res.ok) {
         const data = await res.json().catch(() => null);
         setIntentId(typeof data?.id === "string" ? data.id : null);
+        // The server computed this against the real pricing database —
+        // this component never decides fixed-price-vs-diagnostic itself.
+        setResolution(data?.resolution ?? { outcome: "diagnostic" });
         setSubmitState("done");
       } else {
         setSubmitState("error");

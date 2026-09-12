@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { findByZip } from "@/content/dfw-territory";
 import { getDeviceModel, getModelsForFamily, type DeviceFamily } from "@/content/device-catalog";
 import { problems } from "@/content/repair-taxonomy";
+import { resolveRepairServer } from "@/lib/repair-resolution-server";
 
 // This route is the ONLY writer to repair_intent_events. A row here means a
 // real visitor supplied device + problem + a validly formatted ZIP and hit
@@ -97,10 +98,15 @@ export async function POST(request: Request) {
   const { data: recent } = await dedupQuery.limit(1);
 
   if (recent && recent.length > 0) {
-    // Still return the existing row's id — a visitor who double-submits and
-    // then asks for a quote right after needs a real intent_event_id to
-    // attach it to, same as a fresh insert would give them.
-    return NextResponse.json({ ok: true, deduped: true, id: recent[0].id }, { status: 200 });
+    // Still return the existing row's id and a real resolution — a visitor
+    // who double-submits and then asks for a quote right after needs a
+    // real intent_event_id to attach it to, same as a fresh insert would
+    // give them, and the UI still needs to know whether to show a price.
+    const dedupedResolution = await resolveRepairServer(validatedDeviceModel, problem);
+    return NextResponse.json(
+      { ok: true, deduped: true, id: recent[0].id, resolution: dedupedResolution },
+      { status: 200 }
+    );
   }
 
   const { data: inserted, error } = await supabase
@@ -123,5 +129,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not record request" }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, id: inserted.id }, { status: 201 });
+  // Resolution happens here, server-side, against the real pricing
+  // database — never in the browser. Only the minimal outcome (a price or
+  // "diagnostic") is ever sent to the client; the underlying cost/margin
+  // data in pricing_records is never queried by anything client-reachable.
+  const resolution = await resolveRepairServer(validatedDeviceModel, problem);
+
+  return NextResponse.json({ ok: true, id: inserted.id, resolution }, { status: 201 });
 }
