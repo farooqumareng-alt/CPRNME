@@ -6,6 +6,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type { RepairType } from "@/content/repair-taxonomy";
 import type { RepairClass } from "@/content/repair-classes";
+import type { QualityTier } from "@/content/quality-tiers";
 import { computeMarketStats, type MarketStats } from "@/lib/pricing-calculator";
 
 // ---------------------------------------------------------------- Eligibility
@@ -196,6 +197,8 @@ export type PricingRecordRow = {
   id: string;
   model_id: string;
   repair_type: string;
+  quality_tier: QualityTier | null;
+  commercial_decision: "sell" | "do_not_sell" | "pending";
   status: string;
   part_type: string | null;
   part_quality: string | null;
@@ -268,10 +271,14 @@ export async function savePricingRecord(
 }
 
 // Activating a price means exactly one thing may be true at a time for a
-// given (model, repair_type): retire whatever was active before, then
-// activate this one. Two active rows for the same combination would make
-// "the" active price ambiguous, which the customer-facing lookup below
-// can't tolerate.
+// given (model, repair_type, quality_tier): retire whatever was active
+// before FOR THAT SAME TIER, then activate this one. Unlike the old
+// single-tier model, multiple quality tiers of the same repair CAN be
+// active simultaneously on purpose — that's the customer choosing Economy
+// vs. OEM. What's still never ambiguous is which record is "the" active
+// one for one specific tier. Activation also requires an explicit 'sell'
+// commercial_decision — an unresolved 'pending' or explicit 'do_not_sell'
+// tier can never go live no matter what status it's in.
 export async function activatePricingRecord(id: string, approvedBy: string) {
   const supabase = getSupabaseAdmin();
   const record = await getPricingRecord(id);
@@ -279,13 +286,20 @@ export async function activatePricingRecord(id: string, approvedBy: string) {
   if (record.approved_customer_price_cents === null) {
     return { error: "Cannot activate a record with no approved customer price" };
   }
+  if (record.commercial_decision !== "sell") {
+    return { error: "Cannot activate a record that isn't marked commercial_decision = 'sell'" };
+  }
 
-  await supabase
+  let retireQuery = supabase
     .from("pricing_records")
     .update({ status: "retired", updated_at: new Date().toISOString() })
     .eq("model_id", record.model_id)
     .eq("repair_type", record.repair_type)
     .eq("status", "active");
+  retireQuery = record.quality_tier
+    ? retireQuery.eq("quality_tier", record.quality_tier)
+    : retireQuery.is("quality_tier", null);
+  await retireQuery;
 
   const { error } = await supabase
     .from("pricing_records")
@@ -306,23 +320,76 @@ export async function setPricingStatus(id: string, status: string) {
   return supabase.from("pricing_records").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
 }
 
+// SELL / DO NOT SELL / pending — a separate business call from workflow
+// status. "OEM exists as a part" never implies "OEM must be sold"; this is
+// the field that keeps that true. This does NOT change `status` itself —
+// an active row stays "active" in the workflow sense — but the
+// customer-facing gate (getActiveCustomerPriceOptions, below) filters on
+// commercial_decision='sell' too, so flipping this away from 'sell' on an
+// already-active record hides it from customers immediately, verified
+// directly against the live resolution engine. Use setPricingStatus
+// separately if you also want the workflow status itself to reflect that
+// (e.g. moving it to "paused").
+export async function setCommercialDecision(id: string, decision: "sell" | "do_not_sell" | "pending") {
+  const supabase = getSupabaseAdmin();
+  return supabase
+    .from("pricing_records")
+    .update({ commercial_decision: decision, updated_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
+// ---------------------------------------------------- Service-level engine
+// Completely separate from repair/quality pricing, per direction — a flat,
+// cross-cutting fee applied on top of whichever quality tier the customer
+// picks. "active" lets CPRNME turn a level off sitewide (e.g. Urgent, when
+// capacity can't support it) without touching any pricing record.
+export type ServiceLevelRow = {
+  level: "standard" | "priority" | "urgent";
+  fee_cents: number;
+  description: string | null;
+  active: boolean;
+};
+
+export async function getServiceLevels(): Promise<ServiceLevelRow[]> {
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase.from("service_levels").select("level, fee_cents, description, active").order("fee_cents");
+  return data ?? [];
+}
+
+export async function setServiceLevelFee(level: string, feeCents: number, active: boolean) {
+  const supabase = getSupabaseAdmin();
+  return supabase
+    .from("service_levels")
+    .update({ fee_cents: feeCents, active, updated_at: new Date().toISOString() })
+    .eq("level", level);
+}
+
 // ------------------------------------------------ The customer-facing gate
 // The ONLY function in this file that should ever back a customer-visible
-// answer. Returns a price or null — never a cost, never a margin, never a
-// draft/pending number. This is Phase 7's "strict active-price gating."
-export async function getActiveCustomerPrice(modelId: string, repairType: RepairType): Promise<number | null> {
+// answer. Returns a list of (quality tier, price) pairs — one per tier
+// that is BOTH status='active' AND commercial_decision='sell' — never a
+// cost, never a margin, never a draft/pending number, never a tier nobody
+// approved selling. An empty list means "route to diagnostic," same as
+// null did in the single-price version.
+export async function getActiveCustomerPriceOptions(
+  modelId: string,
+  repairType: RepairType
+): Promise<{ qualityTier: QualityTier; priceCents: number }[]> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("pricing_records")
-    .select("approved_customer_price_cents, review_by")
+    .select("quality_tier, approved_customer_price_cents, review_by")
     .eq("model_id", modelId)
     .eq("repair_type", repairType)
     .eq("status", "active")
-    .maybeSingle();
+    .eq("commercial_decision", "sell");
 
-  if (!data || data.approved_customer_price_cents === null) return null;
-  if (data.review_by && new Date(data.review_by) < new Date()) return null; // expired review date
-  return data.approved_customer_price_cents;
+  if (!data) return [];
+  const now = new Date();
+  return data
+    .filter((r) => r.approved_customer_price_cents !== null && r.quality_tier !== null)
+    .filter((r) => !r.review_by || new Date(r.review_by) >= now) // exclude expired review dates
+    .map((r) => ({ qualityTier: r.quality_tier as QualityTier, priceCents: r.approved_customer_price_cents as number }));
 }
 
 export async function isRepairEligible(modelId: string, repairType: RepairType): Promise<boolean> {

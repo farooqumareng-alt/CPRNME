@@ -8,11 +8,13 @@ import {
 } from "@/lib/pricing-data";
 import { getDeviceModel } from "@/content/device-catalog";
 import { repairClasses } from "@/content/repair-classes";
+import { qualityTiers, getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 import {
   saveEligibilityAction,
   addMarketObservationAction,
   activatePricingRecordAction,
   setStatusAction,
+  setCommercialDecisionAction,
 } from "../actions";
 import { PricingCalculatorForm } from "../PricingCalculatorForm";
 
@@ -21,15 +23,16 @@ export const dynamic = "force-dynamic";
 export default async function ManagePricingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ model?: string; repairType?: string }>;
+  searchParams: Promise<{ model?: string; repairType?: string; quality?: string }>;
 }) {
   const user = await requireAdminSession();
   if (!user) redirect("/admin/login?redirect=/admin/pricing");
 
-  const { model: modelId, repairType } = await searchParams;
+  const { model: modelId, repairType, quality } = await searchParams;
   if (!modelId || !repairType) {
     redirect("/admin/pricing");
   }
+  const selectedQuality = (quality as QualityTier | undefined) ?? null;
 
   const device = getDeviceModel(modelId);
   const [eligibility, observations, market, history] = await Promise.all([
@@ -39,8 +42,15 @@ export default async function ManagePricingPage({
     getPricingHistory(modelId, repairType),
   ]);
 
-  const activeRecord = history.find((r) => r.status === "active") ?? null;
-  const draftRecord = history.find((r) => r.status !== "active" && r.status !== "retired") ?? null;
+  // A (model, repair_type) pair can now carry several quality-tier records
+  // at once — never treat "the" record as a single thing. The calculator
+  // below only ever edits ONE tier at a time, chosen via the tier links.
+  const activeRecord = selectedQuality
+    ? history.find((r) => r.status === "active" && r.quality_tier === selectedQuality) ?? null
+    : null;
+  const draftRecord = selectedQuality
+    ? history.find((r) => r.status !== "active" && r.status !== "retired" && r.quality_tier === selectedQuality) ?? null
+    : null;
 
   return (
     <main style={{ maxWidth: 900, margin: "40px auto", padding: "0 16px 100px" }}>
@@ -142,14 +152,53 @@ export default async function ManagePricingPage({
       </section>
 
       <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Economics &amp; price decision</h2>
-        <PricingCalculatorForm
-          modelId={modelId}
-          repairType={repairType}
-          existing={draftRecord ?? activeRecord}
-          market={market}
-          defaultRepairClass={eligibility?.repair_class ?? null}
-        />
+        <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Quality tier</h2>
+        <p style={{ fontSize: 13, color: "var(--cp-ink-soft)", marginBottom: 10 }}>
+          Never all five for every repair — pick only the tiers that genuinely exist and make commercial
+          sense for this exact model. &quot;OEM exists as a part&quot; never implies &quot;OEM must be sold.&quot;
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+          {qualityTiers.map((t) => {
+            const tierRecord = history.find((r) => r.quality_tier === t.id);
+            return (
+              <a
+                key={t.id}
+                href={`/admin/pricing/manage?model=${modelId}&repairType=${repairType}&quality=${t.id}`}
+                className={selectedQuality === t.id ? "btn btn-primary" : "btn btn-secondary"}
+                style={{ fontSize: 12, padding: "6px 12px" }}
+              >
+                {t.label}
+                {tierRecord ? ` (${tierRecord.commercial_decision})` : ""}
+              </a>
+            );
+          })}
+        </div>
+
+        {selectedQuality ? (
+          <>
+            <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>
+              {getQualityTierLabel(selectedQuality)} — economics &amp; price decision
+            </h2>
+            <PricingCalculatorForm
+              modelId={modelId}
+              repairType={repairType}
+              qualityTier={selectedQuality}
+              existing={draftRecord ?? activeRecord}
+              market={market}
+              defaultRepairClass={eligibility?.repair_class ?? null}
+            />
+            {(draftRecord ?? activeRecord) && (
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <span style={{ fontSize: 13, color: "var(--cp-ink-soft)", alignSelf: "center" }}>Commercial decision:</span>
+                <CommercialDecisionButton id={(draftRecord ?? activeRecord)!.id} decision="sell" label="Mark: Sell" />
+                <CommercialDecisionButton id={(draftRecord ?? activeRecord)!.id} decision="do_not_sell" label="Mark: Do Not Sell" />
+                <CommercialDecisionButton id={(draftRecord ?? activeRecord)!.id} decision="pending" label="Mark: Pending" />
+              </div>
+            )}
+          </>
+        ) : (
+          <p style={{ fontSize: 13, color: "var(--cp-ink-faint)" }}>Choose a quality tier above to start or edit its economics.</p>
+        )}
       </section>
 
       <section style={{ marginTop: 24, border: "1.5px solid var(--cp-line)", borderRadius: 10, padding: 16 }}>
@@ -160,7 +209,9 @@ export default async function ManagePricingPage({
           <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ textAlign: "left", color: "var(--cp-ink-faint)", fontSize: 11.5, textTransform: "uppercase" }}>
-                <th style={{ padding: "4px 6px" }}>Status</th>
+                <th style={{ padding: "4px 6px" }}>Quality</th>
+                <th>Status</th>
+                <th>Decision</th>
                 <th>Approved price</th>
                 <th>Outcome</th>
                 <th>Updated</th>
@@ -170,9 +221,11 @@ export default async function ManagePricingPage({
             <tbody>
               {history.map((r) => (
                 <tr key={r.id} style={{ borderTop: "1px solid var(--cp-line)" }}>
-                  <td style={{ padding: "6px" }}>
+                  <td style={{ padding: "6px" }}>{r.quality_tier ? getQualityTierLabel(r.quality_tier) : "—"}</td>
+                  <td>
                     <StatusPill status={r.status} />
                   </td>
+                  <td>{r.commercial_decision}</td>
                   <td>{r.approved_customer_price_cents !== null ? `$${(r.approved_customer_price_cents / 100).toFixed(2)}` : "—"}</td>
                   <td>{r.outcome ?? "—"}</td>
                   <td>{new Date(r.updated_at).toLocaleDateString()}</td>
@@ -181,7 +234,7 @@ export default async function ManagePricingPage({
                       <>
                         <StatusButton id={r.id} status="business_review" label="Send to review" />
                         <StatusButton id={r.id} status="approved" label="Mark approved" />
-                        {r.status === "approved" && r.approved_customer_price_cents !== null && (
+                        {r.status === "approved" && r.approved_customer_price_cents !== null && r.commercial_decision === "sell" && (
                           <form action={activatePricingRecordAction}>
                             <input type="hidden" name="id" value={r.id} />
                             <button type="submit" className="btn btn-primary" style={{ fontSize: 12, padding: "4px 10px" }}>
@@ -225,6 +278,18 @@ function StatusButton({ id, status, label }: { id: string; status: string; label
     <form action={setStatusAction}>
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="status" value={status} />
+      <button type="submit" className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }}>
+        {label}
+      </button>
+    </form>
+  );
+}
+
+function CommercialDecisionButton({ id, decision, label }: { id: string; decision: string; label: string }) {
+  return (
+    <form action={setCommercialDecisionAction}>
+      <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="decision" value={decision} />
       <button type="submit" className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }}>
         {label}
       </button>

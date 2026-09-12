@@ -7,6 +7,7 @@ import { getAnonSessionId } from "@/lib/session-id";
 import { isBuiltLocationSlug } from "@/content/location-pages";
 import { getModelsForFamily, type DeviceFamily, type DeviceModel } from "@/content/device-catalog";
 import { problems as problemOptions } from "@/content/repair-taxonomy";
+import { getQualityTierLabel } from "@/content/quality-tiers";
 import type { ResolutionResult } from "@/lib/repair-resolution-server";
 
 // ---- Data -------------------------------------------------------------
@@ -385,13 +386,26 @@ export function ProblemSelector() {
 
       {submitState === "done" && resolution?.outcome === "fixed_price" && (
         <div className="selector-step fixed-price-result">
-          <h3>Your price</h3>
-          <p className="fixed-price-amount">
-            {problem?.label} — {formatPrice(resolution.priceCents)}
-          </p>
-          <p style={{ color: "var(--cp-ink-soft)", fontSize: "13.5px" }}>
-            Scheduling for fixed-price repairs isn&rsquo;t live yet — this is the
-            real, approved price for your exact model once it is.
+          <h3>{problem?.label} — choose your repair quality</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+            {resolution.options.map((opt) => (
+              <div key={opt.qualityTier} className="quality-option-row">
+                <span>{getQualityTierLabel(opt.qualityTier)}</span>
+                <span className="fixed-price-amount">{formatPrice(opt.priceCents)}</span>
+              </div>
+            ))}
+          </div>
+          {resolution.serviceLevels.length > 1 && (
+            <p style={{ color: "var(--cp-ink-soft)", fontSize: "13px", marginTop: "10px" }}>
+              Service speed:{" "}
+              {resolution.serviceLevels
+                .map((s) => `${s.level[0].toUpperCase()}${s.level.slice(1)}${s.feeCents > 0 ? ` (+${formatPrice(s.feeCents)})` : ""}`)
+                .join(" · ")}
+            </p>
+          )}
+          <p style={{ color: "var(--cp-ink-soft)", fontSize: "13.5px", marginTop: "8px" }}>
+            Scheduling for fixed-price repairs isn&rsquo;t live yet — these are the
+            real, approved prices for your exact model once it is.
           </p>
         </div>
       )}

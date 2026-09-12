@@ -13,9 +13,11 @@ import {
   savePricingRecord,
   activatePricingRecord,
   setPricingStatus,
+  setCommercialDecision,
   createProviderCompensation,
 } from "@/lib/pricing-data";
 import type { RepairClass } from "@/content/repair-classes";
+import type { QualityTier } from "@/content/quality-tiers";
 
 async function requireAdmin() {
   const user = await requireAdminSession();
@@ -98,10 +100,13 @@ export async function savePricingRecordAction(formData: FormData) {
   const id = (formData.get("id") as string) || null;
   const modelId = String(formData.get("modelId"));
   const repairType = String(formData.get("repairType"));
+  const qualityTier = formData.get("qualityTier") as QualityTier;
+  if (!qualityTier) throw new Error("A quality tier must be selected before saving economics");
 
   const { error } = await savePricingRecord(id, {
     model_id: modelId,
     repair_type: repairType,
+    quality_tier: qualityTier,
     status: "draft",
     part_type: (formData.get("partType") as string) || null,
     part_quality: (formData.get("partQuality") as string) || null,
@@ -149,6 +154,19 @@ export async function setStatusAction(formData: FormData) {
   const id = String(formData.get("id"));
   const status = String(formData.get("status"));
   await setPricingStatus(id, status);
+  revalidatePath("/admin/pricing/manage");
+  revalidatePath("/admin/pricing");
+}
+
+// SELL / DO NOT SELL / pending — the business call that "OEM exists as a
+// part" is never allowed to make automatically. Separate from status: this
+// alone never activates or deactivates anything, it only gates whether
+// activatePricingRecord will ever be allowed to succeed for this record.
+export async function setCommercialDecisionAction(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id"));
+  const decision = formData.get("decision") as "sell" | "do_not_sell" | "pending";
+  await setCommercialDecision(id, decision);
   revalidatePath("/admin/pricing/manage");
   revalidatePath("/admin/pricing");
 }

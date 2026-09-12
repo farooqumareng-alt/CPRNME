@@ -445,6 +445,18 @@ button {
   font-family: var(--font-mono, monospace);
   margin: 4px 0 8px;
 }
+.quality-option-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1.5px solid var(--cp-line);
+  border-radius: var(--radius-sm);
+}
+.quality-option-row .fixed-price-amount {
+  margin: 0;
+  font-size: 17px;
+}
 
 /* ---------- how it works ---------- */
 .steps-list {

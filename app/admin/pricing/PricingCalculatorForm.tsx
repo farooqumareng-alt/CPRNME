@@ -11,6 +11,7 @@ import { computeEconomicFloor, classifyOutcome, type MarketStats } from "@/lib/p
 import { savePricingRecordAction } from "./actions";
 import type { PricingRecordRow } from "@/lib/pricing-data";
 import type { RepairClass } from "@/content/repair-classes";
+import type { QualityTier } from "@/content/quality-tiers";
 
 const CENTS_FIELDS = [
   ["partAcquisitionCost", "part_acquisition_cost_cents", "Part acquisition cost"],
@@ -37,12 +38,14 @@ function fromDollarsStr(v: string): number {
 export function PricingCalculatorForm({
   modelId,
   repairType,
+  qualityTier,
   existing,
   market,
   defaultRepairClass,
 }: {
   modelId: string;
   repairType: string;
+  qualityTier: QualityTier;
   existing: PricingRecordRow | null;
   market: MarketStats | null;
   defaultRepairClass: RepairClass | null;
@@ -89,6 +92,7 @@ export function PricingCalculatorForm({
       <input type="hidden" name="id" value={existing?.id ?? ""} />
       <input type="hidden" name="modelId" value={modelId} />
       <input type="hidden" name="repairType" value={repairType} />
+      <input type="hidden" name="qualityTier" value={qualityTier} />
       <input type="hidden" name="repairClass" value={defaultRepairClass ?? ""} />
       <input type="hidden" name="economicFloor" value={(economicFloorCents / 100).toFixed(2)} />
       <input type="hidden" name="marketLow" value={market ? (market.lowCents / 100).toFixed(2) : ""} />
@@ -133,7 +137,7 @@ export function PricingCalculatorForm({
 
       <div style={{ background: "var(--cp-accent-soft)", borderRadius: 10, padding: 16 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Calculator (internal only)</h3>
-        <Row label="Part cost" value={partCostCents} />
+        <Row label="Landed cost (part + shipping)" value={partCostCents} />
         <Row label="Provider compensation" value={inputsCents.providerCompensation} />
         <Row label="Direct service costs" value={directServiceCostsCents} />
         <Row label="Warranty reserve" value={inputsCents.warrantyReserve} />

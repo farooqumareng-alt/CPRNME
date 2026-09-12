@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/supabase-session";
-import { listEligibility, getActiveCustomerPrice } from "@/lib/pricing-data";
+import { listEligibility, getActiveCustomerPriceOptions } from "@/lib/pricing-data";
 import { getDeviceModel, deviceCatalog } from "@/content/device-catalog";
 import { problems, type RepairType } from "@/content/repair-taxonomy";
 import { repairClasses } from "@/content/repair-classes";
+import { getQualityTierLabel } from "@/content/quality-tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +36,8 @@ export default async function PricingAdminPage({
 
   const { q } = await searchParams;
   const rows = await listEligibility(q);
-  const activePrices = await Promise.all(
-    rows.map((r) => getActiveCustomerPrice(r.model_id, r.repair_type as RepairType))
+  const activeOptions = await Promise.all(
+    rows.map((r) => getActiveCustomerPriceOptions(r.model_id, r.repair_type as RepairType))
   );
 
   return (
@@ -84,7 +85,7 @@ export default async function PricingAdminPage({
                 <th>Repair</th>
                 <th>Class</th>
                 <th>Eligible</th>
-                <th>Active price</th>
+                <th>Active, sellable tiers</th>
                 <th></th>
               </tr>
             </thead>
@@ -97,7 +98,13 @@ export default async function PricingAdminPage({
                     <td>{r.repair_type.replace(/_/g, " ")}</td>
                     <td>{r.repair_class ?? "—"}</td>
                     <td>{r.eligible ? "Yes" : "No"}</td>
-                    <td>{activePrices[i] !== null ? `$${(activePrices[i]! / 100).toFixed(2)}` : "—"}</td>
+                    <td>
+                      {activeOptions[i].length === 0
+                        ? "—"
+                        : activeOptions[i]
+                            .map((o) => `${getQualityTierLabel(o.qualityTier)}: $${(o.priceCents / 100).toFixed(2)}`)
+                            .join(", ")}
+                    </td>
                     <td>
                       <a href={`/admin/pricing/manage?model=${r.model_id}&repairType=${r.repair_type}`} className="link-button">
                         Manage
