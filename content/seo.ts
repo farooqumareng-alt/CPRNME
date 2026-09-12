@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { businessInfo } from "./business-info";
+import type { CityRecord } from "./location-eligibility";
+import { getPublishDecision } from "./location-publish-rule";
 
 // One function building the complete, correct metadata object for a page —
 // title, description, canonical, Open Graph, and Twitter Card all derive
@@ -36,5 +38,27 @@ export function pageMetadata({
       title,
       description,
     },
+  };
+}
+
+// Same as pageMetadata(), plus the noindex directive location pages need —
+// derived from the dataset-driven publish rule (location-publish-rule.ts),
+// never hand-set per page. A page's indexability changes automatically the
+// moment its city's coverage status changes; no page file needs editing.
+export function locationPageMetadata({
+  city,
+  title,
+  description,
+  path,
+}: {
+  city: CityRecord;
+  title: string;
+  description: string;
+  path: string;
+}): Metadata {
+  const decision = getPublishDecision(city);
+  return {
+    ...pageMetadata({ title, description, path }),
+    robots: decision === "publish" ? undefined : { index: false, follow: true },
   };
 }

@@ -2,45 +2,44 @@ import { LocationPageTemplate } from "@/components/LocationPageTemplate";
 import { locationPageMetadata } from "@/content/seo";
 import { getCityRecord } from "@/content/location-eligibility";
 
-// Pilot location page #2 — see app/locations/dallas/page.tsx.
-const city = getCityRecord("Fort Worth", "Tarrant")!;
+const city = getCityRecord("Grand Prairie", "Dallas")!;
 
 export const metadata = locationPageMetadata({
   city,
-  title: "Phone Repair in Fort Worth, TX | CPRNME",
+  title: "Phone Repair in Grand Prairie, TX | CPRNME",
   description:
-    "Find the right phone repair in Fort Worth — tell us your device, the problem, and your ZIP code, and we'll show you what's available.",
-  path: "/locations/fort-worth",
+    "Find the right phone repair in Grand Prairie — tell us your device, the problem, and your ZIP code, and we'll show you what's available.",
+  path: "/locations/grand-prairie",
 });
 
-export default function FortWorthLocationPage() {
+export default function GrandPrairieLocationPage() {
   return (
     <LocationPageTemplate
-      cityLabel="Fort Worth, TX"
-      h1="Phone Repair in Fort Worth, TX"
+      cityLabel="Grand Prairie, TX"
+      h1="Phone Repair in Grand Prairie, TX"
       quickAnswer={
         <>
-          CPRNME helps Fort Worth-area customers find the right phone
+          CPRNME helps Grand Prairie-area customers find the right phone
           repair. Tell us your device, the problem, and your ZIP code, and
           we&rsquo;ll show you what&rsquo;s actually available before you
           book anything.
         </>
       }
-      localHeading="Fort Worth spans a wide area"
+      localHeading="Grand Prairie sits right between Dallas and Fort Worth"
       localContext={
         <p>
-          Fort Worth is the largest city in Tarrant County, covering
-          everything from Downtown and Near Southside through the Cultural
-          District and far west and south Fort Worth — several dozen ZIP
-          codes in all. Repair options can vary depending on exactly where
-          you are, which is why we ask for your ZIP code before confirming
-          what&rsquo;s available, rather than assuming one answer covers the
-          whole city.
+          Grand Prairie stretches across parts of both Dallas and Tarrant
+          counties, which is part of why it&rsquo;s a good example of how
+          messy city boundaries can get in this area — a single city that
+          crosses county lines. It&rsquo;s known locally for Lone Star Park
+          and a growing cluster of entertainment and logistics development
+          along its northern edge, alongside older residential areas closer
+          to its historic center.
         </p>
       }
       faqs={[
         {
-          question: "Does CPRNME serve every part of Fort Worth?",
+          question: "Does CPRNME serve every part of Grand Prairie?",
           answer:
             "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available before you book anything.",
         },

@@ -2,45 +2,43 @@ import { LocationPageTemplate } from "@/components/LocationPageTemplate";
 import { locationPageMetadata } from "@/content/seo";
 import { getCityRecord } from "@/content/location-eligibility";
 
-// Pilot location page #2 — see app/locations/dallas/page.tsx.
-const city = getCityRecord("Fort Worth", "Tarrant")!;
+const city = getCityRecord("Lewisville", "Denton")!;
 
 export const metadata = locationPageMetadata({
   city,
-  title: "Phone Repair in Fort Worth, TX | CPRNME",
+  title: "Phone Repair in Lewisville, TX | CPRNME",
   description:
-    "Find the right phone repair in Fort Worth — tell us your device, the problem, and your ZIP code, and we'll show you what's available.",
-  path: "/locations/fort-worth",
+    "Find the right phone repair in Lewisville — tell us your device, the problem, and your ZIP code, and we'll show you what's available.",
+  path: "/locations/lewisville",
 });
 
-export default function FortWorthLocationPage() {
+export default function LewisvilleLocationPage() {
   return (
     <LocationPageTemplate
-      cityLabel="Fort Worth, TX"
-      h1="Phone Repair in Fort Worth, TX"
+      cityLabel="Lewisville, TX"
+      h1="Phone Repair in Lewisville, TX"
       quickAnswer={
         <>
-          CPRNME helps Fort Worth-area customers find the right phone
+          CPRNME helps Lewisville-area customers find the right phone
           repair. Tell us your device, the problem, and your ZIP code, and
           we&rsquo;ll show you what&rsquo;s actually available before you
           book anything.
         </>
       }
-      localHeading="Fort Worth spans a wide area"
+      localHeading="Lewisville is built around its lake and retail corridor"
       localContext={
         <p>
-          Fort Worth is the largest city in Tarrant County, covering
-          everything from Downtown and Near Southside through the Cultural
-          District and far west and south Fort Worth — several dozen ZIP
-          codes in all. Repair options can vary depending on exactly where
-          you are, which is why we ask for your ZIP code before confirming
-          what&rsquo;s available, rather than assuming one answer covers the
-          whole city.
+          Lewisville Lake sits along the city&rsquo;s northern edge, and a
+          long retail and business corridor runs through the center of
+          town, which together shape a city that&rsquo;s more spread out
+          than it might first appear. Repair availability can depend on
+          exactly where in Lewisville you are, which is why we confirm by
+          ZIP code rather than assuming one answer covers the whole city.
         </p>
       }
       faqs={[
         {
-          question: "Does CPRNME serve every part of Fort Worth?",
+          question: "Does CPRNME serve every part of Lewisville?",
           answer:
             "Coverage can vary by ZIP code and by the specific repair needed. Tell us your device, the problem, and where you are, and we'll confirm what's actually available before you book anything.",
         },
