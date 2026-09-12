@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/supabase-session";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getDeviceModel } from "@/content/device-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,7 @@ type IntentRow = {
   zip_code: string;
   city: string | null;
   device: string;
+  device_model: string | null;
   problem: string;
   source_page: string;
 };
@@ -38,7 +40,7 @@ export default async function DemandDashboardPage() {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("repair_intent_events")
-    .select("created_at, zip_code, city, device, problem, source_page")
+    .select("created_at, zip_code, city, device, device_model, problem, source_page")
     .order("created_at", { ascending: false })
     .limit(5000);
 
@@ -83,6 +85,7 @@ export default async function DemandDashboardPage() {
   const byZip = countBy(rows, (r) => r.zip_code);
   const byCity = countBy(rows, (r) => r.city ?? "Unresolved / outside known DFW ZIPs");
   const byDevice = countBy(rows, (r) => r.device);
+  const byModel = countBy(rows, (r) => (r.device_model ? getDeviceModel(r.device_model)?.name ?? r.device_model : "Exact model not provided"));
   const byProblem = countBy(rows, (r) => r.problem);
   const bySourcePage = countBy(rows, (r) => r.source_page);
   const first = rows[rows.length - 1]?.created_at;
@@ -113,6 +116,7 @@ export default async function DemandDashboardPage() {
         <BreakdownTable title="Demand by ZIP code" rows={byZip} />
         <BreakdownTable title="Demand by city / community" rows={byCity} />
         <BreakdownTable title="Demand by device" rows={byDevice} />
+        <BreakdownTable title="Demand by exact model" rows={byModel} />
         <BreakdownTable title="Demand by problem" rows={byProblem} />
         <BreakdownTable title="Originating page" rows={bySourcePage} />
       </div>

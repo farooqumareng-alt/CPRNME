@@ -5,20 +5,24 @@ import { useSearchParams, usePathname } from "next/navigation";
 import { track } from "@vercel/analytics";
 import { getAnonSessionId } from "@/lib/session-id";
 import { isBuiltLocationSlug } from "@/content/location-pages";
+import { getModelsForFamily, type DeviceFamily, type DeviceModel } from "@/content/device-catalog";
+import { problems as problemOptions } from "@/content/repair-taxonomy";
+import { resolveRepair } from "@/content/repair-resolution";
 
 // ---- Data -------------------------------------------------------------
-// `followUp` is defined in the type but never populated here on purpose:
-// Phase 2 correction #4 asks the component to be *architected* for
-// diagnostic branching ("won't charge" -> "intermittent or total?" -> ...)
-// without actually building that engine yet. Adding branching later means
-// filling this field in, not restructuring the component.
-type FollowUp = { question: string; options: string[] };
-type Problem = {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  followUp?: FollowUp;
+// Problem labels/ids come from content/repair-taxonomy.ts (the single
+// source of truth the resolution engine and the API route both read) —
+// only the icon mapping lives here, since icons are a display-only detail.
+const problemIcons: Record<string, React.ReactNode> = {
+  screen: <ScreenIcon />,
+  charging: <ChargeIcon />,
+  battery: <BatteryIcon />,
+  power: <PowerIcon />,
+  water: <WaterIcon />,
+  camera: <CameraIcon />,
+  other: <OtherIcon />,
 };
+const problems = problemOptions.map((p) => ({ ...p, icon: problemIcons[p.id] ?? <OtherIcon /> }));
 
 const devices = [
   { id: "iphone", label: "iPhone" },
@@ -27,15 +31,26 @@ const devices = [
   { id: "other", label: "Something else" },
 ] as const;
 
-const problems: Problem[] = [
-  { id: "screen", label: "Screen is cracked", icon: <ScreenIcon /> },
-  { id: "charging", label: "Won't charge", icon: <ChargeIcon /> },
-  { id: "battery", label: "Battery drains fast", icon: <BatteryIcon /> },
-  { id: "power", label: "Won't turn on", icon: <PowerIcon /> },
-  { id: "water", label: "Water damage", icon: <WaterIcon /> },
-  { id: "camera", label: "Camera issue", icon: <CameraIcon /> },
-  { id: "other", label: "Something else", icon: <OtherIcon /> },
-];
+// Cents -> "$149" (or "$149.50" when the price isn't a whole dollar amount).
+// The only place a price is ever formatted for display — every number it
+// receives came from content/repair-pricing.ts's getActivePrice(), never a
+// literal in this component.
+function formatPrice(cents: number): string {
+  const dollars = cents / 100;
+  return `$${dollars % 1 === 0 ? dollars.toFixed(0) : dollars.toFixed(2)}`;
+}
+
+// Groups a family's models by series (iPhone 15, Galaxy A, ...) for the
+// picker, preserving device-catalog.ts's own ordering rather than
+// re-sorting alphabetically.
+function groupBySeries(models: DeviceModel[]): [string, DeviceModel[]][] {
+  const map = new Map<string, DeviceModel[]>();
+  for (const m of models) {
+    if (!map.has(m.series)) map.set(m.series, []);
+    map.get(m.series)!.push(m);
+  }
+  return [...map.entries()];
+}
 
 // Reads ?device=&problem= itself (via useSearchParams) rather than taking
 // them as server-passed props. That keeps "/" statically prerendered: a
@@ -56,6 +71,9 @@ export function ProblemSelector() {
   const validDevice = devices.some((d) => d.id === requestedDevice) ? requestedDevice : null;
   const validProblem = problems.some((p) => p.id === requestedProblem) ? requestedProblem : null;
   const [deviceId, setDeviceId] = useState<string | null>(validDevice);
+  const [modelId, setModelId] = useState<string | null>(null);
+  const [modelSearch, setModelSearch] = useState("");
+  const [modelSkipped, setModelSkipped] = useState(false);
   const [problemId, setProblemId] = useState<string | null>(validProblem);
   const [zip, setZip] = useState("");
   const [zipError, setZipError] = useState<string | null>(null);
@@ -67,6 +85,33 @@ export function ProblemSelector() {
 
   const device = devices.find((d) => d.id === deviceId);
   const problem = problems.find((p) => p.id === problemId);
+
+  // "Something else" as a device has no catalog to pick a model from — an
+  // unknown device can never be fixed-price, so there's nothing to ask.
+  // For iPhone/Android/Tablet, the customer either picks their exact model
+  // or explicitly says they don't know it; either way this becomes "true"
+  // and the flow moves on to the problem step.
+  const needsModelStep = !!device && device.id !== "other";
+  const modelStepComplete = !needsModelStep || modelId !== null || modelSkipped;
+  const familyModels = needsModelStep ? getModelsForFamily(device!.id as DeviceFamily) : [];
+  const trimmedModelSearch = modelSearch.trim().toLowerCase();
+  const filteredModels = trimmedModelSearch
+    ? familyModels.filter((m) => `${m.name} ${m.series}`.toLowerCase().includes(trimmedModelSearch))
+    : familyModels;
+  const groupedModels = groupBySeries(filteredModels);
+
+  // Pure function of (model, problem) — never a claim about what the
+  // customer will actually see until submitState is "done". Computed here
+  // (not stored in state) since it has no side effects and nothing here
+  // ever mutates repair-eligibility.ts or repair-pricing.ts at runtime.
+  const resolution = problem ? resolveRepair(modelId, problem.id) : null;
+
+  function resetSubmission() {
+    setSubmitState("idle");
+    setIntentId(null);
+    setQuoteState("idle");
+    setContactValue("");
+  }
 
   // If this visitor arrived via a location page's "Find My Repair" CTA
   // (?from=<slug>), that's real provenance worth recording as the
@@ -91,6 +136,7 @@ export function ProblemSelector() {
     setContactValue("");
     track("repair_intent_submitted", {
       device: deviceId ?? "unknown",
+      deviceModel: modelId ?? "unspecified",
       problem: problemId ?? "unknown",
       zip: trimmedZip,
     });
@@ -100,6 +146,7 @@ export function ProblemSelector() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           device: deviceId,
+          deviceModel: modelId,
           problem: problemId,
           zip: trimmedZip,
           sourcePage: originPage,
@@ -160,9 +207,10 @@ export function ProblemSelector() {
               aria-pressed={deviceId === d.id}
               onClick={() => {
                 setDeviceId(d.id);
-                setSubmitState("idle");
-                setIntentId(null);
-                setQuoteState("idle");
+                setModelId(null);
+                setModelSearch("");
+                setModelSkipped(false);
+                resetSubmission();
                 track("device_selected", { device: d.id });
               }}
             >
@@ -172,9 +220,81 @@ export function ProblemSelector() {
         </div>
       </div>
 
-      {device && (
+      {needsModelStep && !modelStepComplete && (
         <div className="selector-step">
-          <h3>2. What&rsquo;s wrong with it?</h3>
+          <h3>2. Which {device!.label} do you have?</h3>
+          <input
+            type="text"
+            className="zip-input model-search"
+            placeholder="Search your exact model…"
+            value={modelSearch}
+            onChange={(e) => setModelSearch(e.target.value)}
+            aria-label="Search for your exact device model"
+          />
+          <div className="model-picker-results" role="listbox" aria-label="Matching models">
+            {groupedModels.length === 0 && (
+              <p style={{ color: "var(--cp-ink-faint)", fontSize: "13.5px", padding: "8px 0" }}>
+                No matches — try a different search, or skip below.
+              </p>
+            )}
+            {groupedModels.map(([series, models]) => (
+              <div key={series} className="model-picker-group">
+                <p className="model-picker-series">{series}</p>
+                {models.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className="model-picker-option"
+                    onClick={() => {
+                      setModelId(m.id);
+                      setModelSkipped(false);
+                      resetSubmission();
+                    }}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="btn btn-tertiary"
+            style={{ marginTop: "10px" }}
+            onClick={() => {
+              setModelSkipped(true);
+              setModelId(null);
+              resetSubmission();
+            }}
+          >
+            I don&rsquo;t know my exact model
+          </button>
+        </div>
+      )}
+
+      {needsModelStep && modelStepComplete && (
+        <p className="selector-model-summary">
+          {modelId
+            ? `Model: ${familyModels.find((m) => m.id === modelId)?.name ?? modelId}`
+            : "Exact model not provided"}{" "}
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => {
+              setModelId(null);
+              setModelSkipped(false);
+              setModelSearch("");
+              resetSubmission();
+            }}
+          >
+            Change
+          </button>
+        </p>
+      )}
+
+      {device && modelStepComplete && (
+        <div className="selector-step">
+          <h3>3. What&rsquo;s wrong with it?</h3>
           <div className="problem-grid" role="group" aria-label="Choose the problem">
             {problems.map((p) => (
               <button
@@ -184,9 +304,7 @@ export function ProblemSelector() {
                 aria-pressed={problemId === p.id}
                 onClick={() => {
                   setProblemId(p.id);
-                  setSubmitState("idle");
-                  setIntentId(null);
-                  setQuoteState("idle");
+                  resetSubmission();
                   track("problem_selected", { device: deviceId ?? "unknown", problem: p.id });
                 }}
               >
@@ -209,7 +327,7 @@ export function ProblemSelector() {
 
       {device && problem && (
         <div className="selector-step">
-          <h3>3. Where are you located?</h3>
+          <h3>4. Where are you located?</h3>
           <label htmlFor="repair-zip" style={{ display: "block", fontSize: "14.5px", color: "var(--cp-ink-soft)", marginBottom: "6px" }}>
             ZIP code — so we can tell you what&rsquo;s available near you.
           </label>
@@ -265,7 +383,20 @@ export function ProblemSelector() {
         </div>
       )}
 
-      {submitState === "done" && intentId && quoteState !== "done" && (
+      {submitState === "done" && resolution?.outcome === "fixed_price" && (
+        <div className="selector-step fixed-price-result">
+          <h3>Your price</h3>
+          <p className="fixed-price-amount">
+            {problem?.label} — {formatPrice(resolution.priceCents)}
+          </p>
+          <p style={{ color: "var(--cp-ink-soft)", fontSize: "13.5px" }}>
+            Scheduling for fixed-price repairs isn&rsquo;t live yet — this is the
+            real, approved price for your exact model once it is.
+          </p>
+        </div>
+      )}
+
+      {submitState === "done" && resolution?.outcome === "diagnostic" && intentId && quoteState !== "done" && (
         <div className="selector-step quote-request">
           <h3>Want a real quote for this?</h3>
           <p style={{ color: "var(--cp-ink-soft)", fontSize: "14.5px", marginBottom: "10px" }}>
