@@ -13,6 +13,7 @@ export function SiteHeader() {
         </a>
         <nav className="site-nav" aria-label="Primary">
           <a href="/repairs">Repairs</a>
+          <a href="/locations">Locations</a>
           <a href="/#how-it-works">How It Works</a>
           <a href="/#faq">FAQ</a>
         </nav>

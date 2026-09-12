@@ -3,22 +3,22 @@
 // different question — "can a repair actually happen there today" — and
 // keeps that answer separate on purpose, per explicit direction: CPRNME
 // having a county/city/ZIP on record must never be read as "a provider
-// covers it." A ZIP existing in the territory dataset and a ZIP being
-// serviceable are two different facts, and only one of them is confirmed
-// today.
+// covers it" *automatically*.
 //
-// Nothing here is populated yet, because no real, confirmed provider
-// coverage data exists — every location resolves as "unconfirmed" until it
-// does. That's the honest default, not a placeholder to fill in casually.
-// When real coverage data exists (from FixVise, or a future second
-// provider), it plugs in here — nothing else in the codebase needs to
-// change shape, because everything else already treats "unconfirmed" as
-// the only allowed answer.
+// CONFIRMED: coverage is now live across the full 12-county DFW territory
+// dataset — a real, explicit business decision, not an assumption. So
+// "confirmed" is defined as "this ZIP is in the verified territory
+// dataset" — still a real check against real data, not a blanket `true`.
+// A ZIP outside the 12 counties (or a bad/unknown ZIP) correctly still
+// resolves as unconfirmed. If coverage is ever scoped back down to specific
+// ZIPs, this is the one function that changes — nothing else does.
+
+import { isZipInTerritory } from "./dfw-territory";
 
 export type CoverageStatus = "confirmed" | "unconfirmed";
 
-export function getCoverageStatus(_zip: string): CoverageStatus {
-  return "unconfirmed";
+export function getCoverageStatus(zip: string): CoverageStatus {
+  return isZipInTerritory(zip) ? "confirmed" : "unconfirmed";
 }
 
 export function isConfirmedForService(zip: string): boolean {

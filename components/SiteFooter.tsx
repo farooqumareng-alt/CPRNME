@@ -25,6 +25,7 @@ export function SiteFooter() {
           <a href="/#how-it-works">How It Works</a>
           <a href="/#faq">FAQ</a>
           <a href="/repairs">All Repairs</a>
+          <a href="/locations">Locations</a>
         </nav>
         {credit && (
           <p className="footer-credit">
