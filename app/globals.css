@@ -1,17 +1,22 @@
-/* CPRNME design tokens — Phase 2 palette, light theme only (Phase 2 correction #6:
-   one excellent light theme now; dark mode only if a real product reason emerges). */
+/* CPRNME design tokens — dark gray / white / silver, deliberately distinct
+   from FixVise's blue palette (Phase 2 correction #6 still applies: one
+   light theme, no dark mode without a real product reason).
+
+   Mapping: white/near-white for surfaces, dark graphite for text AND the
+   primary action color (buttons, selected states), silver for borders and
+   secondary-button strokes. No blue anywhere. Every text/background pairing
+   below is checked against WCAG AA (4.5:1 for body text). */
 :root {
-  --cp-bg: #f3f5f9;
+  --cp-bg: #f5f5f6;
   --cp-surface: #ffffff;
-  --cp-ink: #10131a;
-  --cp-ink-soft: #4e5566;
-  --cp-ink-faint: #5c6473; /* darkened from #838b9c — that shade failed WCAG AA
-    (3.13:1) on --cp-bg at the sizes it's used at; this passes at 5.46:1 */
-  --cp-line: #dee2ea;
-  --cp-line-strong: #c3c9d6;
-  --cp-accent: #2f52e0;
-  --cp-accent-ink: #23409e;
-  --cp-accent-soft: #e7ecfc;
+  --cp-ink: #202124;
+  --cp-ink-soft: #55565a;
+  --cp-ink-faint: #64656a; /* 5.34:1 on --cp-bg — passes AA with real margin */
+  --cp-line: #dfdfe1;
+  --cp-line-strong: #c6c7c9; /* the visible "silver" — secondary-button borders, dividers */
+  --cp-accent: #2e2f33; /* dark graphite — primary buttons, selected borders */
+  --cp-accent-ink: #17181b; /* hover / selected text */
+  --cp-accent-soft: #eaeaec; /* silver tint — selected backgrounds, chips */
 
   --radius-sm: 8px;
   --radius-md: 14px;
