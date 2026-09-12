@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Charging Port Repair | CPRNME",
   description:
     "Why phones stop charging reliably, how to tell it's the port and not the cable or battery, and what charging port repair involves.",
-  alternates: { canonical: "/charging-port-repair" },
-};
+  path: "/charging-port-repair",
+});
 
 export default function ChargingPortRepairPage() {
   return (

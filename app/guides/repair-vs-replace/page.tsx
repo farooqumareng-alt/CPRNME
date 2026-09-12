@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Repair vs. Replace | CPRNME",
   description:
     "What actually determines whether fixing your phone is worth it, versus putting that money toward a new one.",
-  alternates: { canonical: "/guides/repair-vs-replace" },
-};
+  path: "/guides/repair-vs-replace",
+});
 
 export default function RepairVsReplacePage() {
   return (

@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "iPad & Tablet Repair | CPRNME",
   description:
     "Screen, battery, and charging problems on iPad and other tablets — what's different from repairing a phone.",
-  alternates: { canonical: "/ipad-tablet-repair" },
-};
+  path: "/ipad-tablet-repair",
+});
 
 export default function IpadTabletRepairPage() {
   return (

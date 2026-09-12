@@ -32,14 +32,12 @@ const mono = IBM_Plex_Mono({
   display: "swap",
 });
 
+// metadataBase only — title/description/canonical/OG/Twitter are set per
+// page via content/seo.ts's pageMetadata(), including the homepage
+// (app/page.tsx), so nothing here would ever actually be used as a
+// fallback. Kept minimal rather than duplicated.
 export const metadata: Metadata = {
   metadataBase: new URL(businessInfo.siteUrl),
-  title: "CPRNME — Cell Phone Repair Near Me",
-  description:
-    "Tell us your device and what's wrong with it, and CPRNME will help you find the right phone repair.",
-  alternates: {
-    canonical: "/",
-  },
 };
 
 export const viewport: Viewport = {

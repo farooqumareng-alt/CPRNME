@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
 import { repairGraph } from "@/content/repair-graph";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "All Repairs | CPRNME",
   description: "Every device, problem, and guide page on CPRNME, in one place.",
-  alternates: { canonical: "/repairs" },
-};
+  path: "/repairs",
+});
 
 const KIND_LABEL: Record<string, string> = {
   hub: "By device",

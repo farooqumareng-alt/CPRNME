@@ -24,8 +24,14 @@ export const businessInfo = {
   brandName: "CPRNME",
   fullName: "Cell Phone Repair Near Me",
 
-  siteUrl: "https://cprnme.com", // confirmed
-  domain: "cprnme.com",
+  // www, not apex: cprnme.com (apex) 308-redirects to www.cprnme.com, which
+  // is where the site actually serves from. Canonical/sitemap/schema URLs
+  // need to point at the final serving URL, not one that itself redirects —
+  // found during the Phase 7 technical audit (every URL in the site was
+  // pointing at the apex, one redirect hop away from where it's actually
+  // served).
+  siteUrl: "https://www.cprnme.com",
+  domain: "cprnme.com", // human-readable form, e.g. for future display — not used to build URLs
 
   phone: {
     display: "(979) 766-9228",

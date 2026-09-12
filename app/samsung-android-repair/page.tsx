@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Samsung / Android Repair | CPRNME",
   description:
     "Screen, battery, charging, and water damage problems on Samsung and other Android phones — what each usually means.",
-  alternates: { canonical: "/samsung-android-repair" },
-};
+  path: "/samsung-android-repair",
+});
 
 export default function SamsungAndroidRepairPage() {
   return (

@@ -37,7 +37,7 @@ export const repairGraph: RepairNode[] = [
     shortLabel: "iPhone Repair",
     kind: "hub",
     parent: "",
-    related: ["charging-port-repair", "water-damage-phone-repair"],
+    related: ["charging-port-repair", "water-damage-phone-repair", "ipad-tablet-repair"],
     summary: "Screen, battery, charging, and water damage repair for iPhone.",
   },
   {
@@ -73,7 +73,7 @@ export const repairGraph: RepairNode[] = [
     shortLabel: "Samsung / Android Repair",
     kind: "hub",
     parent: "",
-    related: ["phone-screen-repair", "charging-port-repair", "water-damage-phone-repair"],
+    related: ["phone-screen-repair", "charging-port-repair", "water-damage-phone-repair", "ipad-tablet-repair"],
     summary: "Screen, battery, charging, and water damage repair for Android phones.",
   },
   {

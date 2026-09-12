@@ -1,10 +1,13 @@
 import { Suspense } from "react";
-import type { Metadata } from "next";
 import { ProblemSelector } from "@/components/ProblemSelector";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/" },
-};
+export const metadata = pageMetadata({
+  title: "CPRNME — Cell Phone Repair Near Me",
+  description:
+    "Tell us your device and what's wrong with it, and CPRNME will help you find the right phone repair.",
+  path: "/",
+});
 
 // Static fallback for the Suspense boundary below — visually identical to
 // ProblemSelector's own unselected first step, so there's nothing to flash

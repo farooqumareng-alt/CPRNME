@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "iPhone Battery Replacement | CPRNME",
   description:
     "How to tell whether your iPhone's battery is actually the problem, and what a battery replacement involves.",
-  alternates: { canonical: "/iphone-battery-replacement" },
-};
+  path: "/iphone-battery-replacement",
+});
 
 export default function IPhoneBatteryReplacementPage() {
   return (

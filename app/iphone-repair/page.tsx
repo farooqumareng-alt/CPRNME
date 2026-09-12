@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "iPhone Repair | CPRNME",
   description:
     "Screen, battery, charging, and water damage repair for iPhone — what each problem usually means and how to get the right fix.",
-  alternates: { canonical: "/iphone-repair" },
-};
+  path: "/iphone-repair",
+});
 
 export default function IPhoneRepairPage() {
   return (

@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Water Damage Phone Repair | CPRNME",
   description:
     "What to do in the first few minutes after a phone gets wet, and what determines whether it can be repaired.",
-  alternates: { canonical: "/water-damage-phone-repair" },
-};
+  path: "/water-damage-phone-repair",
+});
 
 export default function WaterDamagePhoneRepairPage() {
   return (

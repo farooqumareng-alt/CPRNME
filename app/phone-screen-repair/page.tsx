@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { pageMetadata } from "@/content/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Phone Screen Repair | CPRNME",
   description:
     "What screen repair involves across phone brands, and where the process actually differs by device.",
-  alternates: { canonical: "/phone-screen-repair" },
-};
+  path: "/phone-screen-repair",
+});
 
 export default function PhoneScreenRepairPage() {
   return (
