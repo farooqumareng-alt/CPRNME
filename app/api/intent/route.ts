@@ -81,23 +81,30 @@ export async function POST(request: Request) {
     .limit(1);
 
   if (recent && recent.length > 0) {
-    return NextResponse.json({ ok: true, deduped: true }, { status: 200 });
+    // Still return the existing row's id — a visitor who double-submits and
+    // then asks for a quote right after needs a real intent_event_id to
+    // attach it to, same as a fresh insert would give them.
+    return NextResponse.json({ ok: true, deduped: true, id: recent[0].id }, { status: 200 });
   }
 
-  const { error } = await supabase.from("repair_intent_events").insert({
-    session_id: sessionId,
-    zip_code: zip,
-    city,
-    device,
-    problem,
-    source_page: sourcePage,
-    event_type: "repair_intent",
-  });
+  const { data: inserted, error } = await supabase
+    .from("repair_intent_events")
+    .insert({
+      session_id: sessionId,
+      zip_code: zip,
+      city,
+      device,
+      problem,
+      source_page: sourcePage,
+      event_type: "repair_intent",
+    })
+    .select("id")
+    .single();
 
-  if (error) {
-    console.error("Failed to record repair-intent event:", error.message);
+  if (error || !inserted) {
+    console.error("Failed to record repair-intent event:", error?.message);
     return NextResponse.json({ error: "Could not record request" }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true }, { status: 201 });
+  return NextResponse.json({ ok: true, id: inserted.id }, { status: 201 });
 }

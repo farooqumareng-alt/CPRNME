@@ -46,6 +46,7 @@ const problems: Problem[] = [
 // fallback there mirrors step 1's unselected markup so there's nothing to
 // visually flash past.
 type SubmitState = "idle" | "submitting" | "done" | "error";
+type QuoteState = "idle" | "submitting" | "done" | "error";
 
 export function ProblemSelector() {
   const searchParams = useSearchParams();
@@ -59,6 +60,10 @@ export function ProblemSelector() {
   const [zip, setZip] = useState("");
   const [zipError, setZipError] = useState<string | null>(null);
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
+  const [intentId, setIntentId] = useState<string | null>(null);
+  const [contactValue, setContactValue] = useState("");
+  const [quoteState, setQuoteState] = useState<QuoteState>("idle");
+  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   const device = devices.find((d) => d.id === deviceId);
   const problem = problems.find((p) => p.id === problemId);
@@ -81,6 +86,9 @@ export function ProblemSelector() {
     }
     setZipError(null);
     setSubmitState("submitting");
+    setIntentId(null);
+    setQuoteState("idle");
+    setContactValue("");
     track("repair_intent_submitted", {
       device: deviceId ?? "unknown",
       problem: problemId ?? "unknown",
@@ -98,9 +106,44 @@ export function ProblemSelector() {
           sessionId: getAnonSessionId(),
         }),
       });
-      setSubmitState(res.ok ? "done" : "error");
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        setIntentId(typeof data?.id === "string" ? data.id : null);
+        setSubmitState("done");
+      } else {
+        setSubmitState("error");
+      }
     } catch {
       setSubmitState("error");
+    }
+  }
+
+  async function handleQuoteRequest() {
+    if (!intentId) return;
+    const trimmed = contactValue.trim();
+    if (trimmed.length === 0) {
+      setQuoteError("Enter a phone number or email.");
+      return;
+    }
+    const contactMethod = trimmed.includes("@") ? "email" : "phone";
+    setQuoteError(null);
+    setQuoteState("submitting");
+    try {
+      const res = await fetch("/api/quote-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intentEventId: intentId, contactMethod, contactValue: trimmed }),
+      });
+      if (res.ok) {
+        setQuoteState("done");
+      } else {
+        const data = await res.json().catch(() => null);
+        setQuoteError(typeof data?.error === "string" ? data.error : "Something went wrong. Please try again.");
+        setQuoteState("error");
+      }
+    } catch {
+      setQuoteError("Something went wrong. Please try again.");
+      setQuoteState("error");
     }
   }
 
@@ -118,6 +161,8 @@ export function ProblemSelector() {
               onClick={() => {
                 setDeviceId(d.id);
                 setSubmitState("idle");
+                setIntentId(null);
+                setQuoteState("idle");
                 track("device_selected", { device: d.id });
               }}
             >
@@ -140,6 +185,8 @@ export function ProblemSelector() {
                 onClick={() => {
                   setProblemId(p.id);
                   setSubmitState("idle");
+                  setIntentId(null);
+                  setQuoteState("idle");
                   track("problem_selected", { device: deviceId ?? "unknown", problem: p.id });
                 }}
               >
@@ -216,6 +263,51 @@ export function ProblemSelector() {
             </p>
           )}
         </div>
+      )}
+
+      {submitState === "done" && intentId && quoteState !== "done" && (
+        <div className="selector-step quote-request">
+          <h3>Want a real quote for this?</h3>
+          <p style={{ color: "var(--cp-ink-soft)", fontSize: "14.5px", marginBottom: "10px" }}>
+            Leave a phone number or email and we&rsquo;ll review your request and get
+            back to you as soon as possible with your repair options.
+          </p>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <input
+              id="quote-contact"
+              type="text"
+              autoComplete="tel"
+              className="zip-input"
+              style={{ width: "220px" }}
+              placeholder="Phone or email"
+              value={contactValue}
+              aria-invalid={quoteError ? true : undefined}
+              aria-describedby={quoteError ? "quote-contact-error" : undefined}
+              onChange={(e) => {
+                setContactValue(e.target.value);
+                if (quoteError) setQuoteError(null);
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={quoteState === "submitting"}
+              onClick={handleQuoteRequest}
+            >
+              {quoteState === "submitting" ? "Sending…" : "Request a quote"}
+            </button>
+          </div>
+          {quoteError && (
+            <p id="quote-contact-error" role="alert" style={{ color: "var(--cp-error)", fontSize: "13.5px", marginTop: "8px" }}>
+              {quoteError}
+            </p>
+          )}
+        </div>
+      )}
+      {quoteState === "done" && (
+        <p className="selector-note" role="status">
+          Thanks — we&rsquo;ll be in touch soon with your repair options.
+        </p>
       )}
     </div>
   );
