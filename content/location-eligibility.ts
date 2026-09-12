@@ -17,7 +17,7 @@
 // service page. This module answers "is it even worth trying," not
 // "publish this."
 
-import { dfwTerritoryData } from "./dfw-territory.data";
+import { dfwTerritoryData, type TerritoryZip } from "./dfw-territory.data";
 
 export type LocationTier = 1 | 2 | 3;
 
@@ -37,6 +37,7 @@ export type CityRecord = {
   population: number;
   zipCount: number;
   tier: LocationTier;
+  zips: TerritoryZip[]; // needed by location-publish-rule.ts's coverage check
 };
 
 export function getAllCityRecords(): CityRecord[] {
@@ -50,10 +51,15 @@ export function getAllCityRecords(): CityRecord[] {
         population,
         zipCount: city.zips.length,
         tier: population >= TIER_1_MIN_POPULATION ? 1 : population >= TIER_2_MIN_POPULATION ? 2 : 3,
+        zips: city.zips,
       });
     }
   }
   return records.sort((a, b) => b.population - a.population);
+}
+
+export function getCityRecord(name: string, county: string): CityRecord | undefined {
+  return getAllCityRecords().find((c) => c.name === name && c.county === county);
 }
 
 export function getEligibleForDedicatedPage(): CityRecord[] {
