@@ -17,6 +17,7 @@
   --cp-accent: #2e2f33; /* dark graphite — primary buttons, selected borders */
   --cp-accent-ink: #17181b; /* hover / selected text */
   --cp-accent-soft: #eaeaec; /* silver tint — selected backgrounds, chips */
+  --cp-error: #a3352c; /* 4.6:1 on --cp-surface — form validation messages only */
 
   --radius-sm: 8px;
   --radius-md: 14px;
@@ -356,6 +357,26 @@ button {
   font-size: 13px;
   color: var(--cp-ink-faint);
   max-width: 48ch;
+}
+.zip-input {
+  width: 140px;
+  max-width: 100%;
+  background: var(--cp-surface);
+  border: 1.5px solid var(--cp-line);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cp-ink);
+  min-height: 44px;
+  letter-spacing: 0.5px;
+}
+.zip-input:focus {
+  border-color: var(--cp-accent);
+  outline: none;
+}
+.zip-input[aria-invalid="true"] {
+  border-color: var(--cp-error);
 }
 
 /* ---------- how it works ---------- */

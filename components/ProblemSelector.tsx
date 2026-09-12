@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { track } from "@vercel/analytics";
+import { getAnonSessionId } from "@/lib/session-id";
 
 // ---- Data -------------------------------------------------------------
 // `followUp` is defined in the type but never populated here on purpose:
@@ -43,18 +44,54 @@ const problems: Problem[] = [
 // component needs a <Suspense> boundary around it (see app/page.tsx) — the
 // fallback there mirrors step 1's unselected markup so there's nothing to
 // visually flash past.
+type SubmitState = "idle" | "submitting" | "done" | "error";
+
 export function ProblemSelector() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const requestedDevice = searchParams.get("device");
   const requestedProblem = searchParams.get("problem");
   const validDevice = devices.some((d) => d.id === requestedDevice) ? requestedDevice : null;
   const validProblem = problems.some((p) => p.id === requestedProblem) ? requestedProblem : null;
   const [deviceId, setDeviceId] = useState<string | null>(validDevice);
   const [problemId, setProblemId] = useState<string | null>(validProblem);
-  const [showNote, setShowNote] = useState(false);
+  const [zip, setZip] = useState("");
+  const [zipError, setZipError] = useState<string | null>(null);
+  const [submitState, setSubmitState] = useState<SubmitState>("idle");
 
   const device = devices.find((d) => d.id === deviceId);
   const problem = problems.find((p) => p.id === problemId);
+
+  async function handleContinue() {
+    const trimmedZip = zip.trim();
+    if (!/^\d{5}$/.test(trimmedZip)) {
+      setZipError("Enter a valid 5-digit ZIP code.");
+      return;
+    }
+    setZipError(null);
+    setSubmitState("submitting");
+    track("repair_intent_submitted", {
+      device: deviceId ?? "unknown",
+      problem: problemId ?? "unknown",
+      zip: trimmedZip,
+    });
+    try {
+      const res = await fetch("/api/intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          device: deviceId,
+          problem: problemId,
+          zip: trimmedZip,
+          sourcePage: pathname || "/",
+          sessionId: getAnonSessionId(),
+        }),
+      });
+      setSubmitState(res.ok ? "done" : "error");
+    } catch {
+      setSubmitState("error");
+    }
+  }
 
   return (
     <div className="selector">
@@ -90,7 +127,7 @@ export function ProblemSelector() {
                 aria-pressed={problemId === p.id}
                 onClick={() => {
                   setProblemId(p.id);
-                  setShowNote(false);
+                  setSubmitState("idle");
                   track("problem_selected", { device: deviceId ?? "unknown", problem: p.id });
                 }}
               >
@@ -112,25 +149,58 @@ export function ProblemSelector() {
       </div>
 
       {device && problem && (
+        <div className="selector-step">
+          <h3>3. Where are you located?</h3>
+          <label htmlFor="repair-zip" style={{ display: "block", fontSize: "14.5px", color: "var(--cp-ink-soft)", marginBottom: "6px" }}>
+            ZIP code — so we can tell you what&rsquo;s available near you.
+          </label>
+          <input
+            id="repair-zip"
+            type="text"
+            inputMode="numeric"
+            pattern="\d{5}"
+            maxLength={5}
+            autoComplete="postal-code"
+            className="zip-input"
+            placeholder="e.g. 75201"
+            value={zip}
+            aria-invalid={zipError ? true : undefined}
+            aria-describedby={zipError ? "repair-zip-error" : undefined}
+            onChange={(e) => {
+              const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 5);
+              setZip(digitsOnly);
+              if (zipError) setZipError(null);
+              if (submitState !== "idle") setSubmitState("idle");
+            }}
+          />
+          {zipError && (
+            <p id="repair-zip-error" role="alert" style={{ color: "var(--cp-error)", fontSize: "13.5px", marginTop: "6px" }}>
+              {zipError}
+            </p>
+          )}
+        </div>
+      )}
+
+      {device && problem && (
         <div className="selector-next">
-          <p style={{ color: "var(--cp-ink-soft)", fontSize: "14.5px" }}>
-            Next, we&rsquo;ll ask where you&rsquo;re located and show you the repair
-            options available there.
-          </p>
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => {
-              setShowNote(true);
-              track("handoff_click", { device: deviceId ?? "unknown", problem: problemId ?? "unknown" });
-            }}
+            disabled={submitState === "submitting" || submitState === "done"}
+            onClick={handleContinue}
           >
             Continue
           </button>
-          {showNote && (
+          {submitState === "done" && (
             <p className="selector-note" role="status">
-              This is a design preview — the connection that completes your booking
-              isn&rsquo;t live yet. That comes online in a later phase.
+              Got it — request recorded. This is a design preview, so the connection
+              that completes your booking isn&rsquo;t live yet. That comes online in a
+              later phase.
+            </p>
+          )}
+          {submitState === "error" && (
+            <p className="selector-note" role="alert">
+              Something went wrong recording your request. Please try again.
             </p>
           )}
         </div>
