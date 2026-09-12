@@ -1,6 +1,7 @@
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { ServiceSchema } from "@/components/ServiceSchema";
 import { pageMetadata } from "@/content/seo";
 
 export const metadata = pageMetadata({
@@ -13,6 +14,11 @@ export const metadata = pageMetadata({
 export default function WaterDamagePhoneRepairPage() {
   return (
     <>
+      <ServiceSchema
+        name="Water Damage Phone Repair"
+        description="Assessment and repair for phones exposed to water or other liquids."
+        path="/water-damage-phone-repair"
+      />
       <div className="container">
         <Breadcrumbs slug="water-damage-phone-repair" />
       </div>

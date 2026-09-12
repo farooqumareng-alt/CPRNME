@@ -1,6 +1,7 @@
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { ServiceSchema } from "@/components/ServiceSchema";
 import { pageMetadata } from "@/content/seo";
 
 export const metadata = pageMetadata({
@@ -13,6 +14,11 @@ export const metadata = pageMetadata({
 export default function ChargingPortRepairPage() {
   return (
     <>
+      <ServiceSchema
+        name="Charging Port Repair"
+        description="Diagnosis and repair for phones that charge slowly, intermittently, or not at all."
+        path="/charging-port-repair"
+      />
       <div className="container">
         <Breadcrumbs slug="charging-port-repair" />
       </div>

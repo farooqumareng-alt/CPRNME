@@ -8,12 +8,20 @@ import { businessInfo } from "@/content/business-info";
 //   - no `address` / `areaServed` (service territory not confirmed — only
 //     "DFW area" in general, no specific city list yet)
 // Add each once the underlying fact is real, not before.
+//
+// The Organization now carries a stable `@id` — the Phase 10 audit flagged
+// its absence as a gap: without one, a Service schema (see
+// ServiceSchema.tsx) has no way to reference this Organization except by
+// repeating the whole object on every page. `@id` fixes that.
+export const ORGANIZATION_ID = `${businessInfo.siteUrl}/#organization`;
+
 export function OrganizationSchema() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "Organization",
+        "@id": ORGANIZATION_ID,
         name: businessInfo.brandName,
         alternateName: businessInfo.fullName,
         url: businessInfo.siteUrl,
@@ -23,6 +31,7 @@ export function OrganizationSchema() {
         "@type": "WebSite",
         name: businessInfo.brandName,
         url: businessInfo.siteUrl,
+        publisher: { "@id": ORGANIZATION_ID },
       },
     ],
   };

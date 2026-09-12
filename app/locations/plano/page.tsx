@@ -2,7 +2,7 @@ import { LocationPageTemplate } from "@/components/LocationPageTemplate";
 import { locationPageMetadata } from "@/content/seo";
 import { getCityRecord } from "@/content/location-eligibility";
 
-const city = getCityRecord("Plano", "Collin")!;
+const city = getCityRecord("Plano")!;
 
 export const metadata = locationPageMetadata({
   city,

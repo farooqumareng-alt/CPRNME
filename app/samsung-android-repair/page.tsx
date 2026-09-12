@@ -1,6 +1,7 @@
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { ServiceSchema } from "@/components/ServiceSchema";
 import { pageMetadata } from "@/content/seo";
 
 export const metadata = pageMetadata({
@@ -13,6 +14,11 @@ export const metadata = pageMetadata({
 export default function SamsungAndroidRepairPage() {
   return (
     <>
+      <ServiceSchema
+        name="Samsung / Android Repair"
+        description="Screen, battery, charging, and water damage repair for Samsung and other Android phones."
+        path="/samsung-android-repair"
+      />
       <div className="container">
         <Breadcrumbs slug="samsung-android-repair" />
       </div>

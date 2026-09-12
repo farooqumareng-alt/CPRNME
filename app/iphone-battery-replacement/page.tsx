@@ -1,6 +1,7 @@
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { ServiceSchema } from "@/components/ServiceSchema";
 import { pageMetadata } from "@/content/seo";
 
 export const metadata = pageMetadata({
@@ -13,6 +14,11 @@ export const metadata = pageMetadata({
 export default function IPhoneBatteryReplacementPage() {
   return (
     <>
+      <ServiceSchema
+        name="iPhone Battery Replacement"
+        description="Battery replacement for iPhones with reduced capacity, unexpected shutdowns, or fast drain."
+        path="/iphone-battery-replacement"
+      />
       <div className="container">
         <Breadcrumbs slug="iphone-battery-replacement" />
       </div>

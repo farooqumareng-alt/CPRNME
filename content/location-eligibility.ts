@@ -16,6 +16,13 @@
 // disappeared?") applies to a location page exactly as it does to a
 // service page. This module answers "is it even worth trying," not
 // "publish this."
+//
+// CORRECTED after the Phase 9 Tier-2 review: tiering is computed by real
+// city identity, merged across every county a city's ZIPs fall into — not
+// per county-fragment. The original version tiered "Frisco (Denton)" and
+// "Frisco (Collin)" as two separate ~50-70k cities; merged, Frisco is one
+// ~120k city and genuinely Tier 1. Same for Carrollton. A city is one
+// place regardless of which county line happens to run through it.
 
 import { dfwTerritoryData, type TerritoryZip } from "./dfw-territory.data";
 
@@ -33,33 +40,44 @@ const TIER_2_MIN_POPULATION = 30_000;
 
 export type CityRecord = {
   name: string;
-  county: string;
-  population: number;
+  counties: string[]; // every county this city's ZIPs fall under, largest share first
+  population: number; // summed across all counties
   zipCount: number;
   tier: LocationTier;
-  zips: TerritoryZip[]; // needed by location-publish-rule.ts's coverage check
+  zips: TerritoryZip[]; // combined across all counties — used by the coverage check
 };
 
 export function getAllCityRecords(): CityRecord[] {
-  const records: CityRecord[] = [];
+  const byName = new Map<string, { counties: { county: string; population: number }[]; population: number; zips: TerritoryZip[] }>();
+
   for (const county of dfwTerritoryData) {
     for (const city of county.cities) {
       const population = city.zips.reduce((sum, z) => sum + z.population, 0);
-      records.push({
-        name: city.name,
-        county: county.county,
-        population,
-        zipCount: city.zips.length,
-        tier: population >= TIER_1_MIN_POPULATION ? 1 : population >= TIER_2_MIN_POPULATION ? 2 : 3,
-        zips: city.zips,
-      });
+      const cur = byName.get(city.name) ?? { counties: [], population: 0, zips: [] };
+      cur.counties.push({ county: county.county, population });
+      cur.population += population;
+      cur.zips.push(...city.zips);
+      byName.set(city.name, cur);
     }
+  }
+
+  const records: CityRecord[] = [];
+  for (const [name, v] of byName) {
+    const counties = v.counties.sort((a, b) => b.population - a.population).map((c) => c.county);
+    records.push({
+      name,
+      counties,
+      population: v.population,
+      zipCount: v.zips.length,
+      tier: v.population >= TIER_1_MIN_POPULATION ? 1 : v.population >= TIER_2_MIN_POPULATION ? 2 : 3,
+      zips: v.zips,
+    });
   }
   return records.sort((a, b) => b.population - a.population);
 }
 
-export function getCityRecord(name: string, county: string): CityRecord | undefined {
-  return getAllCityRecords().find((c) => c.name === name && c.county === county);
+export function getCityRecord(name: string): CityRecord | undefined {
+  return getAllCityRecords().find((c) => c.name === name);
 }
 
 export function getEligibleForDedicatedPage(): CityRecord[] {

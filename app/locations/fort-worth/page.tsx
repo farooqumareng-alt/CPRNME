@@ -3,7 +3,7 @@ import { locationPageMetadata } from "@/content/seo";
 import { getCityRecord } from "@/content/location-eligibility";
 
 // Pilot location page #2 — see app/locations/dallas/page.tsx.
-const city = getCityRecord("Fort Worth", "Tarrant")!;
+const city = getCityRecord("Fort Worth")!;
 
 export const metadata = locationPageMetadata({
   city,

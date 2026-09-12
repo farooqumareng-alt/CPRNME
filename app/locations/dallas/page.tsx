@@ -6,7 +6,7 @@ import { getCityRecord } from "@/content/location-eligibility";
 // location-page system. Refactored onto the shared LocationPageTemplate once
 // 9 more cities needed the same structure — see that component for why
 // indexability is never decided here.
-const city = getCityRecord("Dallas", "Dallas")!;
+const city = getCityRecord("Dallas")!;
 
 export const metadata = locationPageMetadata({
   city,

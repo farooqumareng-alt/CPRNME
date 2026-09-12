@@ -1,6 +1,7 @@
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RelatedRepairs } from "@/components/RelatedRepairs";
 import { QuickAnswer } from "@/components/QuickAnswer";
+import { ServiceSchema } from "@/components/ServiceSchema";
 import { pageMetadata } from "@/content/seo";
 
 export const metadata = pageMetadata({
@@ -13,6 +14,11 @@ export const metadata = pageMetadata({
 export default function IpadTabletRepairPage() {
   return (
     <>
+      <ServiceSchema
+        name="iPad & Tablet Repair"
+        description="Screen, battery, and charging repair for iPad and other tablets."
+        path="/ipad-tablet-repair"
+      />
       <div className="container">
         <Breadcrumbs slug="ipad-tablet-repair" />
       </div>
