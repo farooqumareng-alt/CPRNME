@@ -6,7 +6,8 @@
 // mutation never trusts the edge check alone.
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/supabase-session";
-import { confirmBooking, setBookingStatus, type BookingWindow } from "@/lib/bookings-data";
+import { confirmBooking, setBookingStatus, listBookings, type BookingWindow } from "@/lib/bookings-data";
+import { markBookingCompleted } from "@/lib/completed-repairs-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 
@@ -78,4 +79,37 @@ export async function setBookingStatusAction(formData: FormData) {
   const { error } = await setBookingStatus(id, status, note);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/bookings");
+}
+
+// The fourth and last stage: a human confirms the repair actually happened
+// and logs what was actually collected. Deliberately never inferred from
+// booking.price_cents — that field defaults the form for convenience, but
+// the admin can (and in the real world sometimes must) enter a different
+// number, and only what they type here ever counts as revenue.
+export async function markBookingCompletedAction(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id"));
+  const revenueCents = Math.round(Number(formData.get("revenue")) * 100);
+  if (!Number.isFinite(revenueCents) || revenueCents < 0) {
+    throw new Error("Amount collected must be a non-negative number");
+  }
+  const completedDate = String(formData.get("completedDate"));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(completedDate)) throw new Error("Invalid completed date");
+  const notes = (formData.get("notes") as string) || null;
+
+  const bookings = await listBookings();
+  const booking = bookings.find((b) => b.id === id);
+  if (!booking) throw new Error("Booking not found");
+
+  const { error } = await markBookingCompleted({
+    intentEventId: booking.intent_event_id,
+    bookingId: booking.id,
+    agreedPriceCents: booking.price_cents,
+    revenueCents,
+    completedAt: new Date(`${completedDate}T12:00:00`).toISOString(),
+    notes,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/revenue");
 }

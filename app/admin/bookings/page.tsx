@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/supabase-session";
 import { listBookings, describeBookingDevice, type BookingRow, type BookingWindow } from "@/lib/bookings-data";
+import { getCompletedBookingIds } from "@/lib/completed-repairs-data";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
-import { confirmBookingAction, setBookingStatusAction } from "./actions";
+import { confirmBookingAction, setBookingStatusAction, markBookingCompletedAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export default async function AdminBookingsPage() {
   const user = await requireAdminSession();
   if (!user) redirect("/admin/login?redirect=/admin/bookings");
 
-  const bookings = await listBookings();
+  const [bookings, completedIds] = await Promise.all([listBookings(), getCompletedBookingIds()]);
   const sorted = [...bookings].sort((a, b) => {
     const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
     if (statusDiff !== 0) return statusDiff;
@@ -50,6 +51,7 @@ export default async function AdminBookingsPage() {
           <a href="/admin/demand">Demand</a>
           <a href="/admin/pricing">Pricing</a>
           <a href="/admin/quotes">Quotes</a>
+          <a href="/admin/revenue">Revenue</a>
           <form action="/admin/logout" method="POST">
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>
               Log out
@@ -76,7 +78,7 @@ export default async function AdminBookingsPage() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 24 }}>
           {sorted.map((b) => (
-            <BookingCard key={b.id} booking={b} />
+            <BookingCard key={b.id} booking={b} isCompleted={completedIds.has(b.id)} />
           ))}
         </div>
       )}
@@ -84,7 +86,7 @@ export default async function AdminBookingsPage() {
   );
 }
 
-function BookingCard({ booking }: { booking: BookingRow }) {
+function BookingCard({ booking, isCompleted }: { booking: BookingRow; isCompleted: boolean }) {
   const intent = booking.repair_intent_events;
   const deviceLabel = describeBookingDevice(booking);
 
@@ -124,6 +126,45 @@ function BookingCard({ booking }: { booking: BookingRow }) {
         <p style={{ fontSize: 13, marginTop: 4, color: "var(--cp-ink-soft)" }}>Note: {booking.admin_note}</p>
       )}
 
+      {isCompleted && (
+        <p style={{ fontSize: 14, marginTop: 8, fontWeight: 700, color: "var(--pass, #2f6f4f)" }}>✓ Repair completed</p>
+      )}
+
+      {booking.status === "confirmed" && !isCompleted && (
+        <form action={markBookingCompletedAction} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12, padding: 12, background: "var(--cp-accent-soft)", borderRadius: 8 }}>
+          <input type="hidden" name="id" value={booking.id} />
+          <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
+            Amount collected ($)
+            <input
+              name="revenue"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={(booking.price_cents / 100).toFixed(2)}
+              required
+              style={{ padding: "6px 8px", border: "1px solid var(--cp-line)", borderRadius: 6, width: 110 }}
+            />
+          </label>
+          <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
+            Completed date
+            <input
+              name="completedDate"
+              type="date"
+              defaultValue={new Date().toISOString().slice(0, 10)}
+              required
+              style={{ padding: "6px 8px", border: "1px solid var(--cp-line)", borderRadius: 6 }}
+            />
+          </label>
+          <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 160 }}>
+            Notes (internal only)
+            <input name="notes" style={{ padding: "6px 8px", border: "1px solid var(--cp-line)", borderRadius: 6 }} />
+          </label>
+          <button type="submit" className="btn btn-primary" style={{ fontSize: 13, padding: "8px 14px" }}>
+            Mark completed
+          </button>
+        </form>
+      )}
+
       {booking.status === "requested" && (
         <form action={confirmBookingAction} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 }}>
           <input type="hidden" name="id" value={booking.id} />
@@ -159,7 +200,7 @@ function BookingCard({ booking }: { booking: BookingRow }) {
         </form>
       )}
 
-      {(booking.status === "requested" || booking.status === "confirmed") && (
+      {!isCompleted && (booking.status === "requested" || booking.status === "confirmed") && (
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <StatusButton id={booking.id} status="cancelled" label="Cancel" />
           {booking.status === "confirmed" && <StatusButton id={booking.id} status="no_show" label="Mark no-show" />}

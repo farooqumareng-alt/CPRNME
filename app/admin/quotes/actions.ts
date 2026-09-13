@@ -6,7 +6,8 @@
 // mutation never trusts the edge check alone.
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/supabase-session";
-import { setQuotePrice, setQuoteStatus, describeQuoteDevice } from "@/lib/quotes-data";
+import { setQuotePrice, setQuoteStatus, listQuotes, describeQuoteDevice } from "@/lib/quotes-data";
+import { markQuoteCompleted } from "@/lib/completed-repairs-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
 import { businessInfo } from "@/content/business-info";
 
@@ -61,4 +62,35 @@ export async function setQuoteStatusAction(formData: FormData) {
   const { error } = await setQuoteStatus(id, status);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/quotes");
+}
+
+// The fourth and last stage: a human confirms the repair actually happened
+// and logs what was actually collected. Never inferred from the quote's
+// own price_cents — that field only defaults the form for convenience.
+export async function markQuoteCompletedAction(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id"));
+  const revenueCents = Math.round(Number(formData.get("revenue")) * 100);
+  if (!Number.isFinite(revenueCents) || revenueCents < 0) {
+    throw new Error("Amount collected must be a non-negative number");
+  }
+  const completedDate = String(formData.get("completedDate"));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(completedDate)) throw new Error("Invalid completed date");
+  const notes = (formData.get("notes") as string) || null;
+
+  const quotes = await listQuotes();
+  const quote = quotes.find((q) => q.id === id);
+  if (!quote) throw new Error("Quote not found");
+
+  const { error } = await markQuoteCompleted({
+    intentEventId: quote.intent_event_id,
+    quoteId: quote.id,
+    agreedPriceCents: quote.price_cents,
+    revenueCents,
+    completedAt: new Date(`${completedDate}T12:00:00`).toISOString(),
+    notes,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/quotes");
+  revalidatePath("/admin/revenue");
 }

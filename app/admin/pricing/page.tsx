@@ -50,6 +50,7 @@ export default async function PricingAdminPage({
           <a href="/admin/demand">Demand</a>
           <a href="/admin/quotes">Quotes</a>
           <a href="/admin/bookings">Bookings</a>
+          <a href="/admin/revenue">Revenue</a>
           <form action="/admin/logout" method="POST">
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>
               Log out
