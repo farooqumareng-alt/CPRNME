@@ -4,10 +4,6 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { businessInfo } from "@/content/business-info";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
-import { MobileCtaBar } from "@/components/MobileCtaBar";
-import { OrganizationSchema } from "@/components/OrganizationSchema";
 
 // Design-system fonts (Phase 2, Section 3): Manrope for headings, Public Sans
 // for body copy, IBM Plex Mono reserved for the occasional technical label
@@ -45,6 +41,11 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+// The true, minimal shell — html/body/fonts/Analytics only. The public
+// site's chrome (header, footer, mobile CTA bar, Organization schema) now
+// lives in app/(site)/layout.tsx, a route-group layout that /admin/*
+// deliberately falls outside of. See that file for why this had to be a
+// route-group split rather than a runtime check.
 export default function RootLayout({
   children,
 }: {
@@ -53,14 +54,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${heading.variable} ${body.variable} ${mono.variable}`}>
       <body>
-        <OrganizationSchema />
-        <a className="skip-link" href="#main-content">
-          Skip to content
-        </a>
-        <SiteHeader />
-        <main id="main-content">{children}</main>
-        <SiteFooter />
-        <MobileCtaBar />
+        {children}
         <Analytics />
         <SpeedInsights />
       </body>
