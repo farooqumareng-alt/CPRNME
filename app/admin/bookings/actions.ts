@@ -7,6 +7,8 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/supabase-session";
 import { confirmBooking, setBookingStatus, type BookingWindow } from "@/lib/bookings-data";
+import { sendEmail, formatMoney, escapeHtml } from "@/lib/email";
+import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 
 async function requireAdmin() {
   const user = await requireAdminSession();
@@ -25,8 +27,24 @@ export async function confirmBookingAction(formData: FormData) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Invalid date");
   if (!["morning", "afternoon", "evening"].includes(window)) throw new Error("Invalid window");
   const note = (formData.get("note") as string) || null;
-  const { error } = await confirmBooking(id, date, window, note);
+  const { data: booking, error } = await confirmBooking(id, date, window, note);
   if (error) throw new Error(error.message);
+
+  // Best-effort customer notification — only reaches the subset who gave
+  // an email address rather than a phone number; a failed send never
+  // undoes the confirmation that was already saved.
+  if (booking && booking.contact_method === "email") {
+    await sendEmail({
+      to: booking.contact_value,
+      subject: "Your CPRNME appointment is confirmed",
+      html: `
+        <p>Your appointment is confirmed for <strong>${escapeHtml(date)}</strong> (${escapeHtml(window)}).</p>
+        <p>${escapeHtml(getQualityTierLabel(booking.quality_tier as QualityTier))} · ${escapeHtml(booking.service_level)} · <strong>${formatMoney(booking.price_cents)}</strong></p>
+        ${note ? `<p>${escapeHtml(note)}</p>` : ""}
+      `,
+    });
+  }
+
   revalidatePath("/admin/bookings");
 }
 

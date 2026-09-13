@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createBookingRequest } from "@/lib/bookings-data";
-import { qualityTiers, type QualityTier } from "@/content/quality-tiers";
+import { qualityTiers, getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
+import { getDeviceModel } from "@/content/device-catalog";
+import { sendEmail, ADMIN_ALERT_EMAIL, formatMoney, escapeHtml } from "@/lib/email";
 
 // Writes to bookings — a real visitor asking to reserve a preferred
 // day/window for a fixed-price repair they've already seen the real price
@@ -90,7 +92,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid requestedWindow" }, { status: 400 });
   }
 
-  const { error } = await createBookingRequest({
+  const { data: booking, error } = await createBookingRequest({
     intentEventId,
     quoteId: null,
     repairType,
@@ -103,15 +105,36 @@ export async function POST(request: Request) {
     requestedWindow: requestedWindow as "morning" | "afternoon" | "evening",
   });
 
-  if (error) {
+  if (error || !booking) {
     // Postgres FK-violation code — the intentEventId doesn't correspond to
     // a real repair_intent_events row (tampered client, stale id, etc.).
-    if (error.code === "23503") {
+    if (error?.code === "23503") {
       return NextResponse.json({ error: "Unknown request — please try again" }, { status: 400 });
     }
-    console.error("Failed to record booking request:", error.message);
+    console.error("Failed to record booking request:", error?.message);
     return NextResponse.json({ error: "Could not record your request" }, { status: 500 });
   }
+
+  // Best-effort admin alert — awaited so it completes before this
+  // serverless function returns (a fire-and-forget promise isn't
+  // guaranteed to finish once the response is sent), but a failed send
+  // never fails the request: the row is already saved and visible in
+  // /admin/bookings regardless of whether this email goes out.
+  const intent = booking.repair_intent_events;
+  const deviceLabel = intent?.device_model ? getDeviceModel(intent.device_model)?.name ?? intent.device : intent?.device ?? "Unknown device";
+  await sendEmail({
+    to: ADMIN_ALERT_EMAIL,
+    subject: `New booking request — ${deviceLabel}, ${intent?.problem ?? "unknown problem"}, ${intent?.zip_code ?? "—"}`,
+    html: `
+      <p><strong>New booking request</strong></p>
+      <p>${escapeHtml(deviceLabel)} — ${escapeHtml(intent?.problem ?? "unknown problem")}</p>
+      <p>${escapeHtml(intent?.city ? `${intent.city}, ` : "")}${escapeHtml(intent?.zip_code ?? "—")}</p>
+      <p>${escapeHtml(getQualityTierLabel(qualityTier))} · ${escapeHtml(serviceLevel)} · <strong>${formatMoney(booking.price_cents)}</strong></p>
+      <p>Requested: <strong>${escapeHtml(requestedDate)}</strong> (${escapeHtml(requestedWindow)})</p>
+      <p>Contact (${escapeHtml(contactMethod)}): <strong>${escapeHtml(trimmedContact)}</strong></p>
+      <p><a href="https://www.cprnme.com/admin/bookings">Review in /admin/bookings</a></p>
+    `,
+  });
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

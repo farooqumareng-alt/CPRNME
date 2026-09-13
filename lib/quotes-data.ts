@@ -53,7 +53,12 @@ export async function setQuotePrice(id: string, priceCents: number, note: string
   return supabase
     .from("repair_quotes")
     .update({ status: "quoted", price_cents: priceCents, quote_note: note, quoted_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    // Row returned so the caller (the Server Action) can email the
+    // customer without a second read — only fires for contact_method
+    // 'email'; phone-contact rows still need a manual call/text.
+    .select("*, repair_intent_events(zip_code, city, device, device_model, problem)")
+    .single();
 }
 
 export async function setQuoteStatus(id: string, status: QuoteRow["status"]) {

@@ -85,18 +85,25 @@ export async function createBookingRequest(input: {
   requestedWindow: BookingWindow;
 }) {
   const supabase = getSupabaseAdmin();
-  return supabase.from("bookings").insert({
-    intent_event_id: input.intentEventId,
-    quote_id: input.quoteId,
-    repair_type: input.repairType,
-    quality_tier: input.qualityTier,
-    service_level: input.serviceLevel,
-    price_cents: input.priceCents,
-    contact_method: input.contactMethod,
-    contact_value: input.contactValue,
-    requested_date: input.requestedDate,
-    requested_window: input.requestedWindow,
-  });
+  return supabase
+    .from("bookings")
+    .insert({
+      intent_event_id: input.intentEventId,
+      quote_id: input.quoteId,
+      repair_type: input.repairType,
+      quality_tier: input.qualityTier,
+      service_level: input.serviceLevel,
+      price_cents: input.priceCents,
+      contact_method: input.contactMethod,
+      contact_value: input.contactValue,
+      requested_date: input.requestedDate,
+      requested_window: input.requestedWindow,
+    })
+    // Joined intent context returned so the caller (the booking-request API
+    // route) can compose a real, useful admin alert email without a second
+    // round-trip.
+    .select("*, repair_intent_events(zip_code, city, device, device_model, problem)")
+    .single();
 }
 
 // The real commitment step — a human looked at the request and an actual
@@ -114,7 +121,12 @@ export async function confirmBooking(id: string, confirmedDate: string, confirme
       confirmed_at: new Date().toISOString(),
       admin_note: note,
     })
-    .eq("id", id);
+    .eq("id", id)
+    // Row returned so the caller (the confirm Server Action) can email the
+    // customer without a second read — only fires for contact_method
+    // 'email'; phone-contact rows still need a manual call/text.
+    .select()
+    .single();
 }
 
 export async function setBookingStatus(id: string, status: BookingStatus, note: string | null) {

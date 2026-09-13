@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getDeviceModel } from "@/content/device-catalog";
+import { sendEmail, ADMIN_ALERT_EMAIL, escapeHtml } from "@/lib/email";
 
 // Writes to repair_quotes — a real visitor opting in to be contacted about a
 // specific repair_intent_events row, nothing more. This does NOT set a
@@ -47,21 +49,43 @@ export async function POST(request: Request) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { error } = await supabase.from("repair_quotes").insert({
-    intent_event_id: intentEventId,
-    contact_method: contactMethod,
-    contact_value: trimmedContact,
-  });
+  const { data: quote, error } = await supabase
+    .from("repair_quotes")
+    .insert({
+      intent_event_id: intentEventId,
+      contact_method: contactMethod,
+      contact_value: trimmedContact,
+    })
+    .select("*, repair_intent_events(zip_code, city, device, device_model, problem)")
+    .single();
 
-  if (error) {
+  if (error || !quote) {
     // Postgres FK-violation code — the intentEventId doesn't correspond to a
     // real repair_intent_events row (tampered client, stale id, etc.).
-    if (error.code === "23503") {
+    if (error?.code === "23503") {
       return NextResponse.json({ error: "Unknown request — please try again" }, { status: 400 });
     }
-    console.error("Failed to record quote request:", error.message);
+    console.error("Failed to record quote request:", error?.message);
     return NextResponse.json({ error: "Could not record your request" }, { status: 500 });
   }
+
+  // Best-effort admin alert — awaited so it completes before this
+  // serverless function returns, but a failed send never fails the
+  // request: the row is already saved and visible in /admin/quotes
+  // regardless of whether this email goes out.
+  const intent = quote.repair_intent_events;
+  const deviceLabel = intent?.device_model ? getDeviceModel(intent.device_model)?.name ?? intent.device : intent?.device ?? "Unknown device";
+  await sendEmail({
+    to: ADMIN_ALERT_EMAIL,
+    subject: `New quote request — ${deviceLabel}, ${intent?.problem ?? "unknown problem"}, ${intent?.zip_code ?? "—"}`,
+    html: `
+      <p><strong>New quote request</strong> (needs a real price before anything can be shown)</p>
+      <p>${escapeHtml(deviceLabel)} — ${escapeHtml(intent?.problem ?? "unknown problem")}</p>
+      <p>${escapeHtml(intent?.city ? `${intent.city}, ` : "")}${escapeHtml(intent?.zip_code ?? "—")}</p>
+      <p>Contact (${escapeHtml(contactMethod)}): <strong>${escapeHtml(trimmedContact)}</strong></p>
+      <p><a href="https://www.cprnme.com/admin/quotes">Review in /admin/quotes</a></p>
+    `,
+  });
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

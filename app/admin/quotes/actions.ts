@@ -6,7 +6,9 @@
 // mutation never trusts the edge check alone.
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/supabase-session";
-import { setQuotePrice, setQuoteStatus } from "@/lib/quotes-data";
+import { setQuotePrice, setQuoteStatus, describeQuoteDevice } from "@/lib/quotes-data";
+import { sendEmail, formatMoney, escapeHtml } from "@/lib/email";
+import { businessInfo } from "@/content/business-info";
 
 async function requireAdmin() {
   const user = await requireAdminSession();
@@ -25,8 +27,25 @@ export async function setQuotePriceAction(formData: FormData) {
     throw new Error("Price must be a positive number");
   }
   const note = (formData.get("note") as string) || null;
-  const { error } = await setQuotePrice(id, priceCents, note);
+  const { data: quote, error } = await setQuotePrice(id, priceCents, note);
   if (error) throw new Error(error.message);
+
+  // Best-effort customer notification — only reaches the subset who gave
+  // an email address rather than a phone number; a failed send never
+  // undoes the price that was already saved.
+  if (quote && quote.contact_method === "email") {
+    await sendEmail({
+      to: quote.contact_value,
+      subject: "Your CPRNME repair quote",
+      html: `
+        <p>Here's the price for your ${escapeHtml(describeQuoteDevice(quote))} repair:</p>
+        <p style="font-size:20px;"><strong>${formatMoney(priceCents)}</strong></p>
+        ${note ? `<p>${escapeHtml(note)}</p>` : ""}
+        <p>Call us at ${escapeHtml(businessInfo.phone.display)} to move forward.</p>
+      `,
+    });
+  }
+
   revalidatePath("/admin/quotes");
 }
 
