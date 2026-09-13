@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createBookingRequest } from "@/lib/bookings-data";
 import { qualityTiers, getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 import { getDeviceModel } from "@/content/device-catalog";
-import { sendEmail, ADMIN_ALERT_EMAIL, formatMoney, escapeHtml } from "@/lib/email";
+import { sendEmail, renderEmailShell, ADMIN_ALERT_EMAIL, formatMoney, escapeHtml } from "@/lib/email";
 
 // Writes to bookings — a real visitor asking to reserve a preferred
 // day/window for a fixed-price repair they've already seen the real price
@@ -122,18 +122,25 @@ export async function POST(request: Request) {
   // /admin/bookings regardless of whether this email goes out.
   const intent = booking.repair_intent_events;
   const deviceLabel = intent?.device_model ? getDeviceModel(intent.device_model)?.name ?? intent.device : intent?.device ?? "Unknown device";
+  const heading = "New booking request";
   await sendEmail({
     to: ADMIN_ALERT_EMAIL,
     subject: `New booking request — ${deviceLabel}, ${intent?.problem ?? "unknown problem"}, ${intent?.zip_code ?? "—"}`,
-    html: `
-      <p><strong>New booking request</strong></p>
-      <p>${escapeHtml(deviceLabel)} — ${escapeHtml(intent?.problem ?? "unknown problem")}</p>
-      <p>${escapeHtml(intent?.city ? `${intent.city}, ` : "")}${escapeHtml(intent?.zip_code ?? "—")}</p>
-      <p>${escapeHtml(getQualityTierLabel(qualityTier))} · ${escapeHtml(serviceLevel)} · <strong>${formatMoney(booking.price_cents)}</strong></p>
-      <p>Requested: <strong>${escapeHtml(requestedDate)}</strong> (${escapeHtml(requestedWindow)})</p>
-      <p>Contact (${escapeHtml(contactMethod)}): <strong>${escapeHtml(trimmedContact)}</strong></p>
-      <p><a href="https://www.cprnme.com/admin/bookings">Review in /admin/bookings</a></p>
-    `,
+    html: renderEmailShell({
+      preheader: `${deviceLabel} · ${intent?.problem ?? "unknown problem"} · ${formatMoney(booking.price_cents)}`,
+      heading,
+      // Internal operational alert — no fulfillment credit line (this
+      // recipient IS the fulfillment side; the line is for customers).
+      showFulfillmentCredit: false,
+      bodyHtml: `
+        <p style="margin:0 0 14px;"><strong>${escapeHtml(deviceLabel)}</strong> — ${escapeHtml(intent?.problem ?? "unknown problem")}</p>
+        <p style="margin:0 0 14px;">${escapeHtml(intent?.city ? `${intent.city}, ` : "")}${escapeHtml(intent?.zip_code ?? "—")}</p>
+        <p style="margin:0 0 14px;">${escapeHtml(getQualityTierLabel(qualityTier))} · ${escapeHtml(serviceLevel)} · <strong>${formatMoney(booking.price_cents)}</strong></p>
+        <p style="margin:0 0 14px;">Requested: <strong>${escapeHtml(requestedDate)}</strong> (${escapeHtml(requestedWindow)})</p>
+        <p style="margin:0 0 20px;">Contact (${escapeHtml(contactMethod)}): <strong>${escapeHtml(trimmedContact)}</strong></p>
+        <p style="margin:0;"><a href="https://www.cprnme.com/admin/bookings" style="display:inline-block; padding:10px 18px; background-color:#2e2f33; color:#ffffff; border-radius:6px; text-decoration:none; font-weight:600; font-size:14px;">Review in /admin/bookings</a></p>
+      `,
+    }),
   });
 
   return NextResponse.json({ ok: true }, { status: 201 });

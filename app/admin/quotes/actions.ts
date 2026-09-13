@@ -7,7 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/supabase-session";
 import { setQuotePrice, setQuoteStatus, describeQuoteDevice } from "@/lib/quotes-data";
-import { sendEmail, formatMoney, escapeHtml } from "@/lib/email";
+import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
 import { businessInfo } from "@/content/business-info";
 
 async function requireAdmin() {
@@ -37,12 +37,17 @@ export async function setQuotePriceAction(formData: FormData) {
     await sendEmail({
       to: quote.contact_value,
       subject: "Your CPRNME repair quote",
-      html: `
-        <p>Here's the price for your ${escapeHtml(describeQuoteDevice(quote))} repair:</p>
-        <p style="font-size:20px;"><strong>${formatMoney(priceCents)}</strong></p>
-        ${note ? `<p>${escapeHtml(note)}</p>` : ""}
-        <p>Call us at ${escapeHtml(businessInfo.phone.display)} to move forward.</p>
-      `,
+      html: renderEmailShell({
+        preheader: `${describeQuoteDevice(quote)} repair — ${formatMoney(priceCents)}`,
+        heading: "Your repair quote",
+        showFulfillmentCredit: true,
+        bodyHtml: `
+          <p style="margin:0 0 18px;">Here's the price for your ${escapeHtml(describeQuoteDevice(quote))} repair:</p>
+          <p style="margin:0 0 18px; font-size:28px; font-weight:700;">${formatMoney(priceCents)}</p>
+          ${note ? `<p style="margin:0 0 18px; color:#55565a;">${escapeHtml(note)}</p>` : ""}
+          <p style="margin:0;">Call us at <a href="tel:${businessInfo.phone.e164}" style="color:#202124; font-weight:600;">${escapeHtml(businessInfo.phone.display)}</a> to move forward.</p>
+        `,
+      }),
     });
   }
 

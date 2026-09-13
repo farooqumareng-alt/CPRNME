@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getDeviceModel } from "@/content/device-catalog";
-import { sendEmail, ADMIN_ALERT_EMAIL, escapeHtml } from "@/lib/email";
+import { sendEmail, renderEmailShell, ADMIN_ALERT_EMAIL, escapeHtml } from "@/lib/email";
 
 // Writes to repair_quotes — a real visitor opting in to be contacted about a
 // specific repair_intent_events row, nothing more. This does NOT set a
@@ -78,13 +78,18 @@ export async function POST(request: Request) {
   await sendEmail({
     to: ADMIN_ALERT_EMAIL,
     subject: `New quote request — ${deviceLabel}, ${intent?.problem ?? "unknown problem"}, ${intent?.zip_code ?? "—"}`,
-    html: `
-      <p><strong>New quote request</strong> (needs a real price before anything can be shown)</p>
-      <p>${escapeHtml(deviceLabel)} — ${escapeHtml(intent?.problem ?? "unknown problem")}</p>
-      <p>${escapeHtml(intent?.city ? `${intent.city}, ` : "")}${escapeHtml(intent?.zip_code ?? "—")}</p>
-      <p>Contact (${escapeHtml(contactMethod)}): <strong>${escapeHtml(trimmedContact)}</strong></p>
-      <p><a href="https://www.cprnme.com/admin/quotes">Review in /admin/quotes</a></p>
-    `,
+    html: renderEmailShell({
+      preheader: `${deviceLabel} · ${intent?.problem ?? "unknown problem"} · needs a real price`,
+      heading: "New quote request",
+      showFulfillmentCredit: false,
+      bodyHtml: `
+        <p style="margin:0 0 14px; color:#55565a;">Needs a real price before anything can be shown to the customer.</p>
+        <p style="margin:0 0 14px;"><strong>${escapeHtml(deviceLabel)}</strong> — ${escapeHtml(intent?.problem ?? "unknown problem")}</p>
+        <p style="margin:0 0 14px;">${escapeHtml(intent?.city ? `${intent.city}, ` : "")}${escapeHtml(intent?.zip_code ?? "—")}</p>
+        <p style="margin:0 0 20px;">Contact (${escapeHtml(contactMethod)}): <strong>${escapeHtml(trimmedContact)}</strong></p>
+        <p style="margin:0;"><a href="https://www.cprnme.com/admin/quotes" style="display:inline-block; padding:10px 18px; background-color:#2e2f33; color:#ffffff; border-radius:6px; text-decoration:none; font-weight:600; font-size:14px;">Review in /admin/quotes</a></p>
+      `,
+    }),
   });
 
   return NextResponse.json({ ok: true }, { status: 201 });
