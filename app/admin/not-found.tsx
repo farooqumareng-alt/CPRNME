@@ -23,6 +23,7 @@ export default function AdminNotFound() {
         <a href="/admin/demand">Demand</a>
         <a href="/admin/pricing">Pricing</a>
         <a href="/admin/quotes">Quotes</a>
+        <a href="/admin/bookings">Bookings</a>
       </nav>
     </main>
   );

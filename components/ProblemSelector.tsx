@@ -58,6 +58,15 @@ function serviceLevelLabel(level: string): string {
   return level[0].toUpperCase() + level.slice(1);
 }
 
+// "2026-09-20" + "morning" -> "Sunday, September 20 (morning)". Parsed as
+// local midnight (not UTC) to match the <input type="date"> value it came
+// from — see todayISO()'s comment for why that distinction matters here.
+function formatBookingWhen(dateStr: string, window: BookingWindow | null): string {
+  const date = new Date(`${dateStr}T00:00:00`);
+  const dateLabel = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  return window ? `${dateLabel} (${window})` : dateLabel;
+}
+
 // Reads ?device=&problem= itself (via useSearchParams) rather than taking
 // them as server-passed props. That keeps "/" statically prerendered: a
 // server component reading `searchParams` forces the whole route to
@@ -68,6 +77,25 @@ function serviceLevelLabel(level: string): string {
 // visually flash past.
 type SubmitState = "idle" | "submitting" | "done" | "error";
 type QuoteState = "idle" | "submitting" | "done" | "error";
+type BookingState = "idle" | "submitting" | "done" | "error";
+type BookingWindow = "morning" | "afternoon" | "evening";
+
+const bookingWindows: { id: BookingWindow; label: string }[] = [
+  { id: "morning", label: "Morning" },
+  { id: "afternoon", label: "Afternoon" },
+  { id: "evening", label: "Evening" },
+];
+
+// yyyy-mm-dd in local time (not UTC) — a date <input>'s value/min both use
+// this format, and using toISOString() here would shift the date backward
+// for anyone west of UTC in the evening.
+function todayISO(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export function ProblemSelector() {
   const searchParams = useSearchParams();
@@ -96,6 +124,10 @@ export function ProblemSelector() {
   const [resolution, setResolution] = useState<ResolutionResult | null>(null);
   const [selectedTier, setSelectedTier] = useState<QualityTier | null>(null);
   const [selectedServiceLevel, setSelectedServiceLevel] = useState<ServiceLevelOption["level"]>("standard");
+  const [bookingDate, setBookingDate] = useState("");
+  const [bookingWindow, setBookingWindow] = useState<BookingWindow | null>(null);
+  const [bookingState, setBookingState] = useState<BookingState>("idle");
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   const problem = problems.find((p) => p.id === problemId);
   const device = devices.find((d) => d.id === deviceId);
@@ -122,6 +154,14 @@ export function ProblemSelector() {
     setResolution(null);
     setSelectedTier(null);
     setSelectedServiceLevel("standard");
+    resetBooking();
+  }
+
+  function resetBooking() {
+    setBookingDate("");
+    setBookingWindow(null);
+    setBookingState("idle");
+    setBookingError(null);
   }
 
   // If this visitor arrived via a location page's "Find My Repair" CTA
@@ -164,6 +204,62 @@ export function ProblemSelector() {
     } catch {
       setQuoteError("Something went wrong. Please try again.");
       setQuoteState("error");
+    }
+  }
+
+  // Records a preferred day/window against an already-priced fixed-price
+  // repair. This is a REQUEST, not a confirmation — see
+  // app/api/booking-request/route.ts and lib/bookings-data.ts. Only
+  // reachable once a quality tier is selected, so there's always a real
+  // repairType + price to attach it to.
+  async function submitBooking() {
+    if (!intentId || !resolution || resolution.outcome !== "fixed_price" || !selectedTier) return;
+    const trimmedContact = contactValue.trim();
+    if (trimmedContact.length === 0) {
+      setBookingError("Enter a phone number or email so we can confirm your appointment.");
+      return;
+    }
+    if (!bookingDate) {
+      setBookingError("Pick a preferred date.");
+      return;
+    }
+    if (!bookingWindow) {
+      setBookingError("Pick a preferred time of day.");
+      return;
+    }
+    const contactMethod = trimmedContact.includes("@") ? "email" : "phone";
+    const tierOption = resolution.options.find((o) => o.qualityTier === selectedTier);
+    const serviceOption = resolution.serviceLevels.find((s) => s.level === selectedServiceLevel);
+    const totalCents = (tierOption?.priceCents ?? 0) + (serviceOption?.feeCents ?? 0);
+    setBookingError(null);
+    setBookingState("submitting");
+    track("booking_requested", { repairType: resolution.repairType, qualityTier: selectedTier });
+    try {
+      const res = await fetch("/api/booking-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intentEventId: intentId,
+          repairType: resolution.repairType,
+          qualityTier: selectedTier,
+          serviceLevel: selectedServiceLevel,
+          priceCents: totalCents,
+          contactMethod,
+          contactValue: trimmedContact,
+          requestedDate: bookingDate,
+          requestedWindow: bookingWindow,
+        }),
+      });
+      if (res.ok) {
+        setBookingState("done");
+      } else {
+        const data = await res.json().catch(() => null);
+        setBookingError(typeof data?.error === "string" ? data.error : "Something went wrong. Please try again.");
+        setBookingState("error");
+      }
+    } catch {
+      setBookingError("Something went wrong. Please try again.");
+      setBookingState("error");
     }
   }
 
@@ -429,7 +525,10 @@ export function ProblemSelector() {
                 key={opt.qualityTier}
                 type="button"
                 className={`quality-option-row${selectedTier === opt.qualityTier ? " selected" : ""}`}
-                onClick={() => setSelectedTier(opt.qualityTier)}
+                onClick={() => {
+                  setSelectedTier(opt.qualityTier);
+                  resetBooking();
+                }}
               >
                 <span>
                   <strong>{getQualityTierLabel(opt.qualityTier)}</strong>
@@ -453,7 +552,10 @@ export function ProblemSelector() {
                     type="button"
                     className={`chip${selectedServiceLevel === s.level ? " selected" : ""}`}
                     aria-pressed={selectedServiceLevel === s.level}
-                    onClick={() => setSelectedServiceLevel(s.level)}
+                    onClick={() => {
+                      setSelectedServiceLevel(s.level);
+                      resetBooking();
+                    }}
                   >
                     {serviceLevelLabel(s.level)}
                     {s.feeCents > 0 ? ` (+${formatPrice(s.feeCents)})` : ""}
@@ -472,10 +574,97 @@ export function ProblemSelector() {
             </div>
           )}
 
-          <p style={{ color: "var(--cp-ink-soft)", fontSize: "13.5px", marginTop: "10px" }}>
-            Scheduling for fixed-price repairs isn&rsquo;t live yet — these are the
-            real, approved prices for your exact model once it is.
-          </p>
+          {selectedTier && bookingState === "done" && (
+            <p className="selector-note" role="status" style={{ marginTop: "16px" }}>
+              Got it — we&rsquo;ll confirm your appointment for {formatBookingWhen(bookingDate, bookingWindow)} shortly.
+            </p>
+          )}
+
+          {selectedTier && bookingState !== "done" && (
+            <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--cp-line)" }}>
+              <h4 style={{ fontSize: "14.5px", fontWeight: 700, marginBottom: "6px" }}>
+                Want to reserve a time?
+              </h4>
+              <p style={{ color: "var(--cp-ink-soft)", fontSize: "13.5px", marginBottom: "10px" }}>
+                Pick a day and a general time that works, and we&rsquo;ll confirm the exact
+                appointment with you. This isn&rsquo;t an instant booking — a real person
+                confirms it.
+              </p>
+
+              <label htmlFor="booking-date" style={{ display: "block", fontSize: "13.5px", color: "var(--cp-ink-soft)", marginBottom: "6px" }}>
+                Preferred date
+              </label>
+              <input
+                id="booking-date"
+                type="date"
+                min={todayISO()}
+                className="zip-input"
+                style={{ width: "170px" }}
+                value={bookingDate}
+                onChange={(e) => {
+                  setBookingDate(e.target.value);
+                  if (bookingError) setBookingError(null);
+                }}
+              />
+
+              <p style={{ fontSize: "13.5px", color: "var(--cp-ink-soft)", margin: "14px 0 6px" }}>
+                Preferred time of day
+              </p>
+              <div className="chip-row" role="group" aria-label="Choose a preferred time of day">
+                {bookingWindows.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    className={`chip${bookingWindow === w.id ? " selected" : ""}`}
+                    aria-pressed={bookingWindow === w.id}
+                    onClick={() => {
+                      setBookingWindow(w.id);
+                      if (bookingError) setBookingError(null);
+                    }}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+
+              {!contactValue.trim() && (
+                <>
+                  <label htmlFor="booking-contact" style={{ display: "block", fontSize: "13.5px", color: "var(--cp-ink-soft)", margin: "14px 0 6px" }}>
+                    Phone or email — needed so we can confirm your appointment.
+                  </label>
+                  <input
+                    id="booking-contact"
+                    type="text"
+                    autoComplete="tel"
+                    className="zip-input"
+                    style={{ width: "220px" }}
+                    placeholder="Phone or email"
+                    value={contactValue}
+                    onChange={(e) => {
+                      setContactValue(e.target.value);
+                      if (bookingError) setBookingError(null);
+                    }}
+                  />
+                </>
+              )}
+
+              <div style={{ marginTop: "14px" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={bookingState === "submitting"}
+                  onClick={submitBooking}
+                >
+                  {bookingState === "submitting" ? "Requesting…" : "Request this time"}
+                </button>
+              </div>
+              {bookingError && (
+                <p role="alert" style={{ color: "var(--cp-error)", fontSize: "13.5px", marginTop: "8px" }}>
+                  {bookingError}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
