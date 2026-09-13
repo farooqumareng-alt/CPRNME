@@ -449,13 +449,28 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  width: 100%;
   padding: 10px 14px;
+  background: var(--cp-surface);
   border: 1.5px solid var(--cp-line);
   border-radius: var(--radius-sm);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--cp-ink);
+}
+.quality-option-row:hover {
+  border-color: var(--cp-accent);
+}
+.quality-option-row.selected {
+  border-color: var(--cp-accent);
+  background: var(--cp-accent-soft);
 }
 .quality-option-row .fixed-price-amount {
   margin: 0;
   font-size: 17px;
+  white-space: nowrap;
 }
 
 /* ---------- how it works ---------- */

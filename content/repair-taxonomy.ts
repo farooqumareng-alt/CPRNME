@@ -71,3 +71,21 @@ export function getCandidateRepairTypes(problemId: string, isFoldableDevice: boo
   const table = isFoldableDevice ? foldableCandidateRepairTypes : candidateRepairTypes;
   return table[problemId] ?? ["diagnostic_hardware_failure"];
 }
+
+// Repair types that are never eligible for fixed pricing, by definition —
+// "we need to look at it" is the entire meaning of these two, not a status
+// that changes with more eligibility data. Used to decide whether asking
+// for an exact model could ever matter for a given problem, before the
+// device is even known.
+const ALWAYS_DIAGNOSTIC: ReadonlySet<RepairType> = new Set(["diagnostic_hardware_failure", "liquid_damage_diagnostic"]);
+
+// True if this problem has at least one candidate repair type (on an
+// ordinary device OR a foldable) that could ever resolve to a fixed price.
+// False means every candidate is always-diagnostic — asking for an exact
+// model can never change the outcome, so the UI can skip that step
+// entirely for this problem, before the customer has even picked a device.
+export function canEverBeFixedPrice(problemId: string): boolean {
+  const ordinary = candidateRepairTypes[problemId] ?? ["diagnostic_hardware_failure"];
+  const foldable = foldableCandidateRepairTypes[problemId] ?? ["diagnostic_hardware_failure"];
+  return [...ordinary, ...foldable].some((rt) => !ALWAYS_DIAGNOSTIC.has(rt));
+}

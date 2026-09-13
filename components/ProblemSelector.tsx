@@ -6,9 +6,9 @@ import { track } from "@vercel/analytics";
 import { getAnonSessionId } from "@/lib/session-id";
 import { isBuiltLocationSlug } from "@/content/location-pages";
 import { getModelsForFamily, type DeviceFamily, type DeviceModel } from "@/content/device-catalog";
-import { problems as problemOptions } from "@/content/repair-taxonomy";
-import { getQualityTierLabel } from "@/content/quality-tiers";
-import type { ResolutionResult } from "@/lib/repair-resolution-server";
+import { problems as problemOptions, canEverBeFixedPrice } from "@/content/repair-taxonomy";
+import { getQualityTierLabel, getQualityTierDescription, type QualityTier } from "@/content/quality-tiers";
+import type { ResolutionResult, ServiceLevelOption } from "@/lib/repair-resolution-server";
 
 // ---- Data -------------------------------------------------------------
 // Problem labels/ids come from content/repair-taxonomy.ts (the single
@@ -54,6 +54,10 @@ function groupBySeries(models: DeviceModel[]): [string, DeviceModel[]][] {
   return [...map.entries()];
 }
 
+function serviceLevelLabel(level: string): string {
+  return level[0].toUpperCase() + level.slice(1);
+}
+
 // Reads ?device=&problem= itself (via useSearchParams) rather than taking
 // them as server-passed props. That keeps "/" statically prerendered: a
 // server component reading `searchParams` forces the whole route to
@@ -72,29 +76,37 @@ export function ProblemSelector() {
   const requestedProblem = searchParams.get("problem");
   const validDevice = devices.some((d) => d.id === requestedDevice) ? requestedDevice : null;
   const validProblem = problems.some((p) => p.id === requestedProblem) ? requestedProblem : null;
+
+  // Problem comes first now — "something's wrong with my phone" is how a
+  // real visitor actually starts, not "here is my device." Reordering this
+  // is purely presentational; the ?device=/?problem= prefill used by the
+  // repair-guide pages doesn't care which step renders first.
+  const [problemId, setProblemId] = useState<string | null>(validProblem);
   const [deviceId, setDeviceId] = useState<string | null>(validDevice);
   const [modelId, setModelId] = useState<string | null>(null);
   const [modelSearch, setModelSearch] = useState("");
   const [modelSkipped, setModelSkipped] = useState(false);
-  const [problemId, setProblemId] = useState<string | null>(validProblem);
   const [zip, setZip] = useState("");
   const [zipError, setZipError] = useState<string | null>(null);
+  const [contactValue, setContactValue] = useState("");
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [intentId, setIntentId] = useState<string | null>(null);
-  const [contactValue, setContactValue] = useState("");
   const [quoteState, setQuoteState] = useState<QuoteState>("idle");
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [resolution, setResolution] = useState<ResolutionResult | null>(null);
+  const [selectedTier, setSelectedTier] = useState<QualityTier | null>(null);
+  const [selectedServiceLevel, setSelectedServiceLevel] = useState<ServiceLevelOption["level"]>("standard");
 
-  const device = devices.find((d) => d.id === deviceId);
   const problem = problems.find((p) => p.id === problemId);
+  const device = devices.find((d) => d.id === deviceId);
 
-  // "Something else" as a device has no catalog to pick a model from — an
-  // unknown device can never be fixed-price, so there's nothing to ask.
-  // For iPhone/Android/Tablet, the customer either picks their exact model
-  // or explicitly says they don't know it; either way this becomes "true"
-  // and the flow moves on to the problem step.
-  const needsModelStep = !!device && device.id !== "other";
+  // The single biggest step-count reduction available: for a problem whose
+  // every candidate repair type is always-diagnostic (water damage, won't
+  // turn on, "something else"), no exact model could ever change the
+  // outcome — so don't ask for one. Decided from the problem alone, before
+  // the device is even picked.
+  const modelStepMatters = problem ? canEverBeFixedPrice(problem.id) : false;
+  const needsModelStep = !!device && device.id !== "other" && modelStepMatters;
   const modelStepComplete = !needsModelStep || modelId !== null || modelSkipped;
   const familyModels = needsModelStep ? getModelsForFamily(device!.id as DeviceFamily) : [];
   const trimmedModelSearch = modelSearch.trim().toLowerCase();
@@ -107,8 +119,9 @@ export function ProblemSelector() {
     setSubmitState("idle");
     setIntentId(null);
     setQuoteState("idle");
-    setContactValue("");
     setResolution(null);
+    setSelectedTier(null);
+    setSelectedServiceLevel("standard");
   }
 
   // If this visitor arrived via a location page's "Find My Repair" CTA
@@ -121,6 +134,39 @@ export function ProblemSelector() {
   const originPage =
     fromSlug && isBuiltLocationSlug(fromSlug) ? `/locations/${fromSlug}` : pathname || "/";
 
+  // Submits the contact info against an already-created intent. Callable
+  // both from the fallback "Request a quote" button AND automatically,
+  // right after a diagnostic outcome, when the customer already gave
+  // contact info in the combined ZIP+contact step — that's the step this
+  // saves for anyone willing to fill in both at once.
+  async function submitQuote(forIntentId: string, contact: string) {
+    const trimmed = contact.trim();
+    if (trimmed.length === 0) {
+      setQuoteError("Enter a phone number or email.");
+      return;
+    }
+    const contactMethod = trimmed.includes("@") ? "email" : "phone";
+    setQuoteError(null);
+    setQuoteState("submitting");
+    try {
+      const res = await fetch("/api/quote-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intentEventId: forIntentId, contactMethod, contactValue: trimmed }),
+      });
+      if (res.ok) {
+        setQuoteState("done");
+      } else {
+        const data = await res.json().catch(() => null);
+        setQuoteError(typeof data?.error === "string" ? data.error : "Something went wrong. Please try again.");
+        setQuoteState("error");
+      }
+    } catch {
+      setQuoteError("Something went wrong. Please try again.");
+      setQuoteState("error");
+    }
+  }
+
   async function handleContinue() {
     const trimmedZip = zip.trim();
     if (!/^\d{5}$/.test(trimmedZip)) {
@@ -131,7 +177,7 @@ export function ProblemSelector() {
     setSubmitState("submitting");
     setIntentId(null);
     setQuoteState("idle");
-    setContactValue("");
+    setResolution(null);
     track("repair_intent_submitted", {
       device: deviceId ?? "unknown",
       deviceModel: modelId ?? "unspecified",
@@ -153,11 +199,17 @@ export function ProblemSelector() {
       });
       if (res.ok) {
         const data = await res.json().catch(() => null);
-        setIntentId(typeof data?.id === "string" ? data.id : null);
-        // The server computed this against the real pricing database —
-        // this component never decides fixed-price-vs-diagnostic itself.
-        setResolution(data?.resolution ?? { outcome: "diagnostic" });
+        const newIntentId = typeof data?.id === "string" ? data.id : null;
+        const newResolution: ResolutionResult = data?.resolution ?? { outcome: "diagnostic" };
+        setIntentId(newIntentId);
+        setResolution(newResolution);
         setSubmitState("done");
+        // The step-saving move: if this turned out to need a look, and the
+        // customer already told us how to reach them, don't make them do
+        // it again in a second step — send it now.
+        if (newResolution.outcome === "diagnostic" && newIntentId && contactValue.trim()) {
+          submitQuote(newIntentId, contactValue);
+        }
       } else {
         setSubmitState("error");
       }
@@ -166,64 +218,65 @@ export function ProblemSelector() {
     }
   }
 
-  async function handleQuoteRequest() {
-    if (!intentId) return;
-    const trimmed = contactValue.trim();
-    if (trimmed.length === 0) {
-      setQuoteError("Enter a phone number or email.");
-      return;
-    }
-    const contactMethod = trimmed.includes("@") ? "email" : "phone";
-    setQuoteError(null);
-    setQuoteState("submitting");
-    try {
-      const res = await fetch("/api/quote-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intentEventId: intentId, contactMethod, contactValue: trimmed }),
-      });
-      if (res.ok) {
-        setQuoteState("done");
-      } else {
-        const data = await res.json().catch(() => null);
-        setQuoteError(typeof data?.error === "string" ? data.error : "Something went wrong. Please try again.");
-        setQuoteState("error");
-      }
-    } catch {
-      setQuoteError("Something went wrong. Please try again.");
-      setQuoteState("error");
-    }
-  }
+  let stepNumber = 0;
+  const nextStep = () => ++stepNumber;
 
   return (
     <div className="selector">
       <div className="selector-step">
-        <h3>1. What device do you have?</h3>
-        <div className="chip-row" role="group" aria-label="Choose your device">
-          {devices.map((d) => (
+        <h3>{nextStep()}. What&rsquo;s wrong with it?</h3>
+        <div className="problem-grid" role="group" aria-label="Choose the problem">
+          {problems.map((p) => (
             <button
-              key={d.id}
+              key={p.id}
               type="button"
-              className={`chip${deviceId === d.id ? " selected" : ""}`}
-              aria-pressed={deviceId === d.id}
+              className={`problem-card${problemId === p.id ? " selected" : ""}`}
+              aria-pressed={problemId === p.id}
               onClick={() => {
-                setDeviceId(d.id);
+                setProblemId(p.id);
                 setModelId(null);
                 setModelSearch("");
                 setModelSkipped(false);
                 resetSubmission();
-                track("device_selected", { device: d.id });
+                track("problem_selected", { device: deviceId ?? "unknown", problem: p.id });
               }}
             >
-              {d.label}
+              <span aria-hidden="true">{p.icon}</span>
+              <span>{p.label}</span>
             </button>
           ))}
         </div>
       </div>
 
+      {problem && (
+        <div className="selector-step">
+          <h3>{nextStep()}. What device do you have?</h3>
+          <div className="chip-row" role="group" aria-label="Choose your device">
+            {devices.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                className={`chip${deviceId === d.id ? " selected" : ""}`}
+                aria-pressed={deviceId === d.id}
+                onClick={() => {
+                  setDeviceId(d.id);
+                  setModelId(null);
+                  setModelSearch("");
+                  setModelSkipped(false);
+                  resetSubmission();
+                  track("device_selected", { device: d.id });
+                }}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {needsModelStep && !modelStepComplete && (
         <div className="selector-step">
-          <h3>2. Which {device!.label} do you have?</h3>
+          <h3>{nextStep()}. Which {device!.label} do you have?</h3>
           <input
             type="text"
             className="zip-input model-search"
@@ -293,30 +346,6 @@ export function ProblemSelector() {
         </p>
       )}
 
-      {device && modelStepComplete && (
-        <div className="selector-step">
-          <h3>3. What&rsquo;s wrong with it?</h3>
-          <div className="problem-grid" role="group" aria-label="Choose the problem">
-            {problems.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className={`problem-card${problemId === p.id ? " selected" : ""}`}
-                aria-pressed={problemId === p.id}
-                onClick={() => {
-                  setProblemId(p.id);
-                  resetSubmission();
-                  track("problem_selected", { device: deviceId ?? "unknown", problem: p.id });
-                }}
-              >
-                <span aria-hidden="true">{p.icon}</span>
-                <span>{p.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="selector-summary" aria-live="polite">
         {device && problem && (
           <p>
@@ -326,11 +355,11 @@ export function ProblemSelector() {
         )}
       </div>
 
-      {device && problem && (
+      {device && modelStepComplete && (
         <div className="selector-step">
-          <h3>4. Where are you located?</h3>
+          <h3>{nextStep()}. Where are you, and how should we reach you?</h3>
           <label htmlFor="repair-zip" style={{ display: "block", fontSize: "14.5px", color: "var(--cp-ink-soft)", marginBottom: "6px" }}>
-            ZIP code — so we can tell you what&rsquo;s available near you.
+            ZIP code — this is what we use to route your request today.
           </label>
           <input
             id="repair-zip"
@@ -356,10 +385,24 @@ export function ProblemSelector() {
               {zipError}
             </p>
           )}
+
+          <label htmlFor="repair-contact" style={{ display: "block", fontSize: "14.5px", color: "var(--cp-ink-soft)", margin: "14px 0 6px" }}>
+            Phone or email (optional) — only needed if your repair turns out to require a quick review.
+          </label>
+          <input
+            id="repair-contact"
+            type="text"
+            autoComplete="tel"
+            className="zip-input"
+            style={{ width: "220px" }}
+            placeholder="Optional"
+            value={contactValue}
+            onChange={(e) => setContactValue(e.target.value)}
+          />
         </div>
       )}
 
-      {device && problem && (
+      {device && modelStepComplete && (
         <div className="selector-next">
           <button
             type="button"
@@ -369,13 +412,6 @@ export function ProblemSelector() {
           >
             Continue
           </button>
-          {submitState === "done" && (
-            <p className="selector-note" role="status">
-              Got it — request recorded. CPRNME is still early: this tells us there&rsquo;s
-              real demand for a repair like yours in your area, but the next step —
-              confirming and scheduling an actual repair — isn&rsquo;t live yet.
-            </p>
-          )}
           {submitState === "error" && (
             <p className="selector-note" role="alert">
               Something went wrong recording your request. Please try again.
@@ -389,30 +425,69 @@ export function ProblemSelector() {
           <h3>{problem?.label} — choose your repair quality</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
             {resolution.options.map((opt) => (
-              <div key={opt.qualityTier} className="quality-option-row">
-                <span>{getQualityTierLabel(opt.qualityTier)}</span>
+              <button
+                key={opt.qualityTier}
+                type="button"
+                className={`quality-option-row${selectedTier === opt.qualityTier ? " selected" : ""}`}
+                onClick={() => setSelectedTier(opt.qualityTier)}
+              >
+                <span>
+                  <strong>{getQualityTierLabel(opt.qualityTier)}</strong>
+                  <br />
+                  <span style={{ fontSize: "12.5px", color: "var(--cp-ink-soft)", fontWeight: 400 }}>
+                    {getQualityTierDescription(opt.qualityTier)}
+                  </span>
+                </span>
                 <span className="fixed-price-amount">{formatPrice(opt.priceCents)}</span>
-              </div>
+              </button>
             ))}
           </div>
-          {resolution.serviceLevels.length > 1 && (
-            <p style={{ color: "var(--cp-ink-soft)", fontSize: "13px", marginTop: "10px" }}>
-              Service speed:{" "}
-              {resolution.serviceLevels
-                .map((s) => `${s.level[0].toUpperCase()}${s.level.slice(1)}${s.feeCents > 0 ? ` (+${formatPrice(s.feeCents)})` : ""}`)
-                .join(" · ")}
-            </p>
+
+          {selectedTier && resolution.serviceLevels.length > 0 && (
+            <div style={{ marginTop: "16px" }}>
+              <p style={{ fontSize: "13.5px", fontWeight: 600, marginBottom: "6px" }}>How soon do you need it?</p>
+              <div className="chip-row" role="group" aria-label="Choose service speed">
+                {resolution.serviceLevels.map((s) => (
+                  <button
+                    key={s.level}
+                    type="button"
+                    className={`chip${selectedServiceLevel === s.level ? " selected" : ""}`}
+                    aria-pressed={selectedServiceLevel === s.level}
+                    onClick={() => setSelectedServiceLevel(s.level)}
+                  >
+                    {serviceLevelLabel(s.level)}
+                    {s.feeCents > 0 ? ` (+${formatPrice(s.feeCents)})` : ""}
+                  </button>
+                ))}
+              </div>
+              <p style={{ marginTop: "12px", fontSize: "14.5px" }}>
+                Total:{" "}
+                <strong className="fixed-price-amount" style={{ fontSize: "18px" }}>
+                  {formatPrice(
+                    (resolution.options.find((o) => o.qualityTier === selectedTier)?.priceCents ?? 0) +
+                      (resolution.serviceLevels.find((s) => s.level === selectedServiceLevel)?.feeCents ?? 0)
+                  )}
+                </strong>
+              </p>
+            </div>
           )}
-          <p style={{ color: "var(--cp-ink-soft)", fontSize: "13.5px", marginTop: "8px" }}>
+
+          <p style={{ color: "var(--cp-ink-soft)", fontSize: "13.5px", marginTop: "10px" }}>
             Scheduling for fixed-price repairs isn&rsquo;t live yet — these are the
             real, approved prices for your exact model once it is.
           </p>
         </div>
       )}
 
-      {submitState === "done" && resolution?.outcome === "diagnostic" && intentId && quoteState !== "done" && (
+      {submitState === "done" && resolution?.outcome === "diagnostic" && quoteState === "done" && (
+        <p className="selector-note" role="status">
+          Thanks — we&rsquo;ll be in touch soon with your repair options.
+        </p>
+      )}
+
+      {submitState === "done" && resolution?.outcome === "diagnostic" && intentId && quoteState !== "done" && !contactValue.trim() && (
         <div className="selector-step quote-request">
-          <h3>Want a real quote for this?</h3>
+          <h3>This one needs a quick review</h3>
           <p style={{ color: "var(--cp-ink-soft)", fontSize: "14.5px", marginBottom: "10px" }}>
             Leave a phone number or email and we&rsquo;ll review your request and get
             back to you as soon as possible with your repair options.
@@ -437,7 +512,7 @@ export function ProblemSelector() {
               type="button"
               className="btn btn-secondary"
               disabled={quoteState === "submitting"}
-              onClick={handleQuoteRequest}
+              onClick={() => intentId && submitQuote(intentId, contactValue)}
             >
               {quoteState === "submitting" ? "Sending…" : "Request a quote"}
             </button>
@@ -449,9 +524,10 @@ export function ProblemSelector() {
           )}
         </div>
       )}
-      {quoteState === "done" && (
+
+      {submitState === "done" && resolution?.outcome === "diagnostic" && quoteState === "submitting" && contactValue.trim() && (
         <p className="selector-note" role="status">
-          Thanks — we&rsquo;ll be in touch soon with your repair options.
+          Sending your request…
         </p>
       )}
     </div>

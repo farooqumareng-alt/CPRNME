@@ -10,19 +10,23 @@ export const metadata = pageMetadata({
   path: "/",
 });
 
-// Static fallback for the Suspense boundary below — visually identical to
-// ProblemSelector's own unselected first step, so there's nothing to flash
-// past while the client component hydrates and reads ?device=/?problem=.
+// Static fallback for the Suspense boundary below — visually close to
+// ProblemSelector's own unselected first step (problem selection now comes
+// first — "what's wrong" is how a real visitor actually starts), so
+// there's nothing to jarringly flash past while the client component
+// hydrates and reads ?device=/?problem=.
 function ProblemSelectorFallback() {
+  const labels = ["Screen is cracked", "Won't charge", "Battery drains fast", "Won't turn on", "Water damage", "Camera issue", "Something else"];
   return (
     <div className="selector">
       <div className="selector-step">
-        <h3>1. What device do you have?</h3>
-        <div className="chip-row">
-          <span className="chip">iPhone</span>
-          <span className="chip">Samsung / Android</span>
-          <span className="chip">iPad / Tablet</span>
-          <span className="chip">Something else</span>
+        <h3>1. What&rsquo;s wrong with it?</h3>
+        <div className="problem-grid">
+          {labels.map((label) => (
+            <span key={label} className="problem-card">
+              {label}
+            </span>
+          ))}
         </div>
       </div>
     </div>
@@ -32,8 +36,10 @@ function ProblemSelectorFallback() {
 // Phase 3 homepage. Content follows the Architecture Plan (Section 8) with
 // Phase 2's corrections applied:
 //   - neutral positioning, no service-model claim baked in (correction #2)
-//   - device -> problem is framed as the first step, not the whole process
-//     (correction #3)
+//   - device+problem framed as the first step, not the whole process
+//     (correction #3) — later reordered to problem -> device (Customer
+//     Experience & Expertise Layer phase): "what's wrong" is how a real
+//     visitor actually starts, not "here's my device"
 //   - no same-day / pricing / warranty / service-area claims anywhere
 //     (correction #5)
 //   - a decision-support section ("repair or replace") instead of pushing
@@ -66,7 +72,7 @@ export default function HomePage() {
 
       <section id="find-repair" className="section container" aria-labelledby="find-repair-heading">
         <h2 id="find-repair-heading">Find your repair</h2>
-        <p className="section-lede">Two quick questions — no account, no commitment.</p>
+        <p className="section-lede">Tell us what&rsquo;s wrong — no account, no commitment.</p>
         <Suspense fallback={<ProblemSelectorFallback />}>
           <ProblemSelector />
         </Suspense>
