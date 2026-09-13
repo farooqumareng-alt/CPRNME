@@ -131,6 +131,7 @@ function AdminHeader() {
         CPRNME Admin
       </span>
       <nav style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 13 }}>
+        <a href="/admin/quotes">Quotes</a>
         <a href="/admin/pricing">Pricing</a>
         <form action="/admin/logout" method="POST">
           <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>

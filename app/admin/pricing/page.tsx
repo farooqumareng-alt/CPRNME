@@ -48,6 +48,7 @@ export default async function PricingAdminPage({
         </span>
         <nav style={{ display: "flex", gap: 14, fontSize: 13 }}>
           <a href="/admin/demand">Demand</a>
+          <a href="/admin/quotes">Quotes</a>
           <form action="/admin/logout" method="POST">
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>
               Log out
