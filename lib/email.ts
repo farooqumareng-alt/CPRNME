@@ -12,7 +12,13 @@ import { businessInfo, getFulfillmentCredit } from "@/content/business-info";
 
 const FROM_ADDRESS = "CPRNME <notifications@cprnme.com>";
 
-export async function sendEmail(input: { to: string; subject: string; html: string }): Promise<{ ok: boolean; error?: string }> {
+// notifications@cprnme.com is a sending-only identity — nobody reads that
+// inbox. Every email sets Reply-To to the one address that IS actually
+// monitored, so hitting "Reply" on any CPRNME email (an admin replying to
+// their own alert, or a customer replying to a confirmation) lands
+// somewhere real instead of vanishing. Overridable per-send for the rare
+// case a different reply destination is genuinely correct.
+export async function sendEmail(input: { to: string; subject: string; html: string; replyTo?: string }): Promise<{ ok: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.error("RESEND_API_KEY is not set — email not sent:", input.subject);
@@ -31,6 +37,7 @@ export async function sendEmail(input: { to: string; subject: string; html: stri
         subject: input.subject,
         html: input.html,
         text: htmlToText(input.html),
+        reply_to: input.replyTo ?? ADMIN_ALERT_EMAIL,
       }),
     });
     if (!res.ok) {

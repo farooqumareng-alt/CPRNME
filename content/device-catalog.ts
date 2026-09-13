@@ -181,3 +181,20 @@ export function getModelsForFamily(family: DeviceFamily): DeviceModel[] {
 export function isFoldable(id: string): boolean {
   return id.includes("fold") || id.includes("flip");
 }
+
+// Mirrors the four device-family labels components/ProblemSelector.tsx's
+// picker step shows (kept as a separate literal array there for its "as
+// const" id-union typing) — this copy exists so a server-side fallback (an
+// admin-alert email composed when a customer chose "iPhone" but not an
+// exact model) shows the same polished label a visitor sees, not the raw
+// internal id ("iphone").
+const FAMILY_LABELS: Record<string, string> = {
+  iphone: "iPhone",
+  android: "Samsung / Android",
+  tablet: "iPad / Tablet",
+  other: "Something else",
+};
+
+export function getDeviceFamilyLabel(id: string): string {
+  return FAMILY_LABELS[id] ?? id;
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getDeviceModel } from "@/content/device-catalog";
+import { getDeviceModel, getDeviceFamilyLabel } from "@/content/device-catalog";
 import { sendEmail, renderEmailShell, ADMIN_ALERT_EMAIL, escapeHtml } from "@/lib/email";
 
 // Writes to repair_quotes — a real visitor opting in to be contacted about a
@@ -74,7 +74,11 @@ export async function POST(request: Request) {
   // request: the row is already saved and visible in /admin/quotes
   // regardless of whether this email goes out.
   const intent = quote.repair_intent_events;
-  const deviceLabel = intent?.device_model ? getDeviceModel(intent.device_model)?.name ?? intent.device : intent?.device ?? "Unknown device";
+  const deviceLabel = intent?.device_model
+    ? getDeviceModel(intent.device_model)?.name ?? getDeviceFamilyLabel(intent.device)
+    : intent?.device
+      ? getDeviceFamilyLabel(intent.device)
+      : "Unknown device";
   await sendEmail({
     to: ADMIN_ALERT_EMAIL,
     subject: `New quote request — ${deviceLabel}, ${intent?.problem ?? "unknown problem"}, ${intent?.zip_code ?? "—"}`,

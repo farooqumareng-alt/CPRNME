@@ -13,7 +13,7 @@
 // status='requested' is a customer's preference; only an admin turning it
 // into 'confirmed' (via confirmBooking) represents an actual commitment.
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getDeviceModel } from "@/content/device-catalog";
+import { getDeviceModel, getDeviceFamilyLabel } from "@/content/device-catalog";
 
 export type BookingWindow = "morning" | "afternoon" | "evening";
 export type BookingStatus = "requested" | "confirmed" | "rescheduled" | "cancelled" | "no_show";
@@ -65,7 +65,8 @@ export function describeBookingDevice(row: BookingRow): string {
   const model = row.repair_intent_events?.device_model
     ? getDeviceModel(row.repair_intent_events.device_model)
     : null;
-  return model?.name ?? row.repair_intent_events?.device ?? "Unknown device";
+  if (model) return model.name;
+  return row.repair_intent_events?.device ? getDeviceFamilyLabel(row.repair_intent_events.device) : "Unknown device";
 }
 
 // Creates the initial 'requested' row — the one write the customer-facing

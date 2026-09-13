@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createBookingRequest } from "@/lib/bookings-data";
 import { qualityTiers, getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
-import { getDeviceModel } from "@/content/device-catalog";
+import { getDeviceModel, getDeviceFamilyLabel } from "@/content/device-catalog";
 import { sendEmail, renderEmailShell, ADMIN_ALERT_EMAIL, formatMoney, escapeHtml } from "@/lib/email";
 
 // Writes to bookings — a real visitor asking to reserve a preferred
@@ -121,7 +121,11 @@ export async function POST(request: Request) {
   // never fails the request: the row is already saved and visible in
   // /admin/bookings regardless of whether this email goes out.
   const intent = booking.repair_intent_events;
-  const deviceLabel = intent?.device_model ? getDeviceModel(intent.device_model)?.name ?? intent.device : intent?.device ?? "Unknown device";
+  const deviceLabel = intent?.device_model
+    ? getDeviceModel(intent.device_model)?.name ?? getDeviceFamilyLabel(intent.device)
+    : intent?.device
+      ? getDeviceFamilyLabel(intent.device)
+      : "Unknown device";
   const heading = "New booking request";
   await sendEmail({
     to: ADMIN_ALERT_EMAIL,

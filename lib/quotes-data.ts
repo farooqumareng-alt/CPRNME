@@ -4,7 +4,7 @@
 // opened: a real visitor leaves contact info, and until this file existed,
 // nothing ever read it back.
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { getDeviceModel } from "@/content/device-catalog";
+import { getDeviceModel, getDeviceFamilyLabel } from "@/content/device-catalog";
 
 export type QuoteRow = {
   id: string;
@@ -45,7 +45,8 @@ export async function listQuotes(): Promise<QuoteRow[]> {
 
 export function describeQuoteDevice(row: QuoteRow): string {
   const model = row.repair_intent_events?.device_model ? getDeviceModel(row.repair_intent_events.device_model) : null;
-  return model?.name ?? row.repair_intent_events?.device ?? "Unknown device";
+  if (model) return model.name;
+  return row.repair_intent_events?.device ? getDeviceFamilyLabel(row.repair_intent_events.device) : "Unknown device";
 }
 
 export async function setQuotePrice(id: string, priceCents: number, note: string | null) {
