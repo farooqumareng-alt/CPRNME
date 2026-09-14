@@ -27,7 +27,12 @@ export type JobEventType =
   | "booking_rescheduled_by_customer"
   | "technician_assigned"
   | "technician_status_changed"
-  | "repair_completed";
+  | "repair_completed"
+  // Knowledge-graph edits (see app/admin/taxonomy) — not part of the
+  // repair funnel, but a real audit trail of who changed the taxonomy
+  // and when is worth keeping in the same append-only log rather than
+  // a separate one.
+  | "device_added";
 
 export async function logJobEvent(input: {
   eventType: JobEventType;
