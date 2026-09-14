@@ -9,6 +9,8 @@ import { getModelsForFamily, type DeviceFamily, type DeviceModel } from "@/conte
 import { problems as problemOptions, canEverBeFixedPrice } from "@/content/repair-taxonomy";
 import { getQualityTierLabel, getQualityTierDescription, type QualityTier } from "@/content/quality-tiers";
 import type { ResolutionResult, ServiceLevelOption } from "@/lib/repair-resolution-server";
+import { isEligibleForRealTimeSlots } from "@/content/booking-radius";
+import { MAX_ADVANCE_BOOKING_DAYS } from "@/content/time-windows";
 
 // ---- Data -------------------------------------------------------------
 // Problem labels/ids come from content/repair-taxonomy.ts (the single
@@ -79,6 +81,7 @@ type SubmitState = "idle" | "submitting" | "done" | "error";
 type QuoteState = "idle" | "submitting" | "done" | "error";
 type BookingState = "idle" | "submitting" | "done" | "error";
 type BookingWindow = "morning" | "afternoon" | "evening";
+type SlotAvailability = { window: string; label: string; bookedCount: number; capacity: number; full: boolean };
 
 const bookingWindows: { id: BookingWindow; label: string }[] = [
   { id: "morning", label: "Morning" },
@@ -91,6 +94,19 @@ const bookingWindows: { id: BookingWindow; label: string }[] = [
 // for anyone west of UTC in the evening.
 function todayISO(): string {
   const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// The last date real-time slots can be booked against — see
+// content/time-windows.ts's MAX_ADVANCE_BOOKING_DAYS comment; the
+// out-of-radius request-based path has no such limit, since a human
+// reviews any date regardless.
+function maxAdvanceDateISO(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + MAX_ADVANCE_BOOKING_DAYS);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -128,9 +144,20 @@ export function ProblemSelector() {
   const [bookingWindow, setBookingWindow] = useState<BookingWindow | null>(null);
   const [bookingState, setBookingState] = useState<BookingState>("idle");
   const [bookingError, setBookingError] = useState<string | null>(null);
+  // Real-time slots only (see content/booking-radius.ts) — a live look at
+  // actual capacity for the selected date, fetched fresh each time the
+  // date changes so it never shows stale availability.
+  const [selectedSlotWindow, setSelectedSlotWindow] = useState<string | null>(null);
+  const [slotAvailability, setSlotAvailability] = useState<SlotAvailability[] | null>(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [bookedInstantly, setBookedInstantly] = useState(false);
 
   const problem = problems.find((p) => p.id === problemId);
   const device = devices.find((d) => d.id === deviceId);
+  // Real-time slots only apply within the real, sourced eligibility radius
+  // (content/booking-radius.ts) — everywhere else keeps the existing
+  // request-based, admin-confirmed flow unchanged.
+  const realTimeEligible = zip.length === 5 && isEligibleForRealTimeSlots(zip);
 
   // The single biggest step-count reduction available: for a problem whose
   // every candidate repair type is always-diagnostic (water damage, won't
@@ -162,6 +189,33 @@ export function ProblemSelector() {
     setBookingWindow(null);
     setBookingState("idle");
     setBookingError(null);
+    setSelectedSlotWindow(null);
+    setSlotAvailability(null);
+    setSlotsLoading(false);
+    setBookedInstantly(false);
+  }
+
+  // Real-time slots only — fetches actual current capacity for one date.
+  // Called whenever the date changes, never cached, since availability is
+  // real and can change between one customer's page load and the next.
+  async function loadSlotAvailability(date: string) {
+    setSlotsLoading(true);
+    setSelectedSlotWindow(null);
+    try {
+      const res = await fetch(`/api/slot-availability?date=${date}`);
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        setSlotAvailability(Array.isArray(data?.availability) ? data.availability : null);
+      } else {
+        setSlotAvailability(null);
+        setBookingError("Couldn't load availability for that date. Try another.");
+      }
+    } catch {
+      setSlotAvailability(null);
+      setBookingError("Couldn't load availability for that date. Try another.");
+    } finally {
+      setSlotsLoading(false);
+    }
   }
 
   // If this visitor arrived via a location page's "Find My Repair" CTA
@@ -252,6 +306,69 @@ export function ProblemSelector() {
       });
       if (res.ok) {
         setBookingState("done");
+      } else {
+        const data = await res.json().catch(() => null);
+        setBookingError(typeof data?.error === "string" ? data.error : "Something went wrong. Please try again.");
+        setBookingState("error");
+      }
+    } catch {
+      setBookingError("Something went wrong. Please try again.");
+      setBookingState("error");
+    }
+  }
+
+  // Real-time slots only — an atomic claim against actual capacity (see
+  // app/api/book-slot/route.ts and the claim_booking_slot() Postgres
+  // function). Unlike submitBooking() above, success here means a real,
+  // final 'confirmed' row, not a request awaiting a human.
+  async function submitRealTimeSlot() {
+    if (!intentId || !resolution || resolution.outcome !== "fixed_price" || !selectedTier) return;
+    const trimmedContact = contactValue.trim();
+    if (trimmedContact.length === 0) {
+      setBookingError("Enter a phone number or email so we can confirm your appointment.");
+      return;
+    }
+    if (!bookingDate) {
+      setBookingError("Pick a date.");
+      return;
+    }
+    if (!selectedSlotWindow) {
+      setBookingError("Pick an available time.");
+      return;
+    }
+    const contactMethod = trimmedContact.includes("@") ? "email" : "phone";
+    const tierOption = resolution.options.find((o) => o.qualityTier === selectedTier);
+    const serviceOption = resolution.serviceLevels.find((s) => s.level === selectedServiceLevel);
+    const totalCents = (tierOption?.priceCents ?? 0) + (serviceOption?.feeCents ?? 0);
+    setBookingError(null);
+    setBookingState("submitting");
+    track("slot_booked", { repairType: resolution.repairType, qualityTier: selectedTier });
+    try {
+      const res = await fetch("/api/book-slot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intentEventId: intentId,
+          repairType: resolution.repairType,
+          qualityTier: selectedTier,
+          serviceLevel: selectedServiceLevel,
+          priceCents: totalCents,
+          contactMethod,
+          contactValue: trimmedContact,
+          date: bookingDate,
+          window: selectedSlotWindow,
+        }),
+      });
+      if (res.ok) {
+        setBookedInstantly(true);
+        setBookingState("done");
+      } else if (res.status === 409) {
+        // Someone else claimed the last spot in the moment between this
+        // customer loading availability and submitting — real capacity
+        // changed, so refresh it rather than showing a generic error.
+        setBookingError("That time just filled up — pick a different one below.");
+        setBookingState("error");
+        loadSlotAvailability(bookingDate);
       } else {
         const data = await res.json().catch(() => null);
         setBookingError(typeof data?.error === "string" ? data.error : "Something went wrong. Please try again.");
@@ -574,13 +691,115 @@ export function ProblemSelector() {
             </div>
           )}
 
-          {selectedTier && bookingState === "done" && (
+          {selectedTier && bookingState === "done" && bookedInstantly && (
+            <p className="selector-note" role="status" style={{ marginTop: "16px" }}>
+              You&rsquo;re booked — confirmed for {formatBookingWhen(bookingDate, null)}
+              {selectedSlotWindow ? `, ${slotAvailability?.find((s) => s.window === selectedSlotWindow)?.label ?? selectedSlotWindow}` : ""}. We&rsquo;ll
+              see you then.
+            </p>
+          )}
+
+          {selectedTier && bookingState === "done" && !bookedInstantly && (
             <p className="selector-note" role="status" style={{ marginTop: "16px" }}>
               Got it — we&rsquo;ll confirm your appointment for {formatBookingWhen(bookingDate, bookingWindow)} shortly.
             </p>
           )}
 
-          {selectedTier && bookingState !== "done" && (
+          {selectedTier && bookingState !== "done" && realTimeEligible && (
+            <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--cp-line)" }}>
+              <h4 style={{ fontSize: "14.5px", fontWeight: 700, marginBottom: "6px" }}>Book your appointment</h4>
+              <p style={{ color: "var(--cp-ink-soft)", fontSize: "13.5px", marginBottom: "10px" }}>
+                Pick a date and an open time — this reserves it instantly, no waiting on a
+                callback.
+              </p>
+
+              <label htmlFor="slot-date" style={{ display: "block", fontSize: "13.5px", color: "var(--cp-ink-soft)", marginBottom: "6px" }}>
+                Date
+              </label>
+              <input
+                id="slot-date"
+                type="date"
+                min={todayISO()}
+                max={maxAdvanceDateISO()}
+                className="zip-input"
+                style={{ width: "170px" }}
+                value={bookingDate}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setBookingDate(newDate);
+                  if (bookingError) setBookingError(null);
+                  if (newDate) loadSlotAvailability(newDate);
+                }}
+              />
+
+              {bookingDate && (
+                <div style={{ marginTop: "14px" }}>
+                  <p style={{ fontSize: "13.5px", color: "var(--cp-ink-soft)", marginBottom: "6px" }}>Available times</p>
+                  {slotsLoading && <p style={{ fontSize: "13.5px", color: "var(--cp-ink-faint)" }}>Loading availability…</p>}
+                  {!slotsLoading && slotAvailability && (
+                    <div className="chip-row" role="group" aria-label="Choose an available time">
+                      {slotAvailability.map((s) => (
+                        <button
+                          key={s.window}
+                          type="button"
+                          disabled={s.full}
+                          className={`chip${selectedSlotWindow === s.window ? " selected" : ""}`}
+                          aria-pressed={selectedSlotWindow === s.window}
+                          style={s.full ? { opacity: 0.45, cursor: "not-allowed", textDecoration: "line-through" } : undefined}
+                          onClick={() => {
+                            setSelectedSlotWindow(s.window);
+                            if (bookingError) setBookingError(null);
+                          }}
+                        >
+                          {s.label}
+                          {s.full ? " — Full" : ""}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!contactValue.trim() && (
+                <>
+                  <label htmlFor="slot-contact" style={{ display: "block", fontSize: "13.5px", color: "var(--cp-ink-soft)", margin: "14px 0 6px" }}>
+                    Phone or email — needed so we can confirm your appointment.
+                  </label>
+                  <input
+                    id="slot-contact"
+                    type="text"
+                    autoComplete="tel"
+                    className="zip-input"
+                    style={{ width: "220px" }}
+                    placeholder="Phone or email"
+                    value={contactValue}
+                    onChange={(e) => {
+                      setContactValue(e.target.value);
+                      if (bookingError) setBookingError(null);
+                    }}
+                  />
+                </>
+              )}
+
+              <div style={{ marginTop: "14px" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={bookingState === "submitting" || !selectedSlotWindow}
+                  onClick={submitRealTimeSlot}
+                >
+                  {bookingState === "submitting" ? "Booking…" : "Confirm booking"}
+                </button>
+              </div>
+              {bookingError && (
+                <p role="alert" style={{ color: "var(--cp-error)", fontSize: "13.5px", marginTop: "8px" }}>
+                  {bookingError}
+                </p>
+              )}
+            </div>
+          )}
+
+          {selectedTier && bookingState !== "done" && !realTimeEligible && (
             <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--cp-line)" }}>
               <h4 style={{ fontSize: "14.5px", fontWeight: 700, marginBottom: "6px" }}>
                 Want to reserve a time?

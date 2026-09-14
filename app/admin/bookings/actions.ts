@@ -6,7 +6,7 @@
 // mutation never trusts the edge check alone.
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/supabase-session";
-import { confirmBooking, setBookingStatus, listBookings, type BookingWindow } from "@/lib/bookings-data";
+import { confirmBookingWithCapacity, setBookingStatus, listBookings, type BookingWindow } from "@/lib/bookings-data";
 import { markBookingCompleted } from "@/lib/completed-repairs-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
@@ -35,8 +35,16 @@ export async function confirmBookingAction(formData: FormData) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Invalid date");
   if (!["morning", "afternoon", "evening"].includes(window)) throw new Error("Invalid window");
   const note = (formData.get("note") as string) || null;
-  const { data: booking, error } = await confirmBooking(id, date, window, note);
-  if (error) throw new Error(error.message);
+  // Routed through the same capacity-checked function the real-time path
+  // uses, so the shared 3-per-window cap holds either way — see
+  // lib/bookings-data.ts's confirmBookingWithCapacity().
+  const { data: booking, error } = await confirmBookingWithCapacity(id, date, window, note);
+  if (error) {
+    if (error.message?.includes("SLOT_FULL")) {
+      throw new Error("That window already has 3 confirmed repairs — pick a different date or window.");
+    }
+    throw new Error(error.message);
+  }
 
   // Best-effort customer notification — only reaches the subset who gave
   // an email address rather than a phone number; a failed send never
