@@ -6,6 +6,7 @@ import { isEligibleForRealTimeSlots } from "@/content/booking-radius";
 import { qualityTiers, getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 import { getDeviceModel, getDeviceFamilyLabel } from "@/content/device-catalog";
 import { sendEmail, renderEmailShell, ADMIN_ALERT_EMAIL, formatMoney, escapeHtml } from "@/lib/email";
+import { logJobEvent } from "@/lib/job-events";
 
 // Real-time, instant-confirm booking — the customer's ZIP must be within
 // content/booking-radius.ts's real eligibility radius (re-checked here,
@@ -127,6 +128,14 @@ export async function POST(request: Request) {
     console.error("Failed to claim booking slot:", error?.message);
     return NextResponse.json({ error: "Could not reserve that time — please try again" }, { status: 500 });
   }
+
+  await logJobEvent({
+    eventType: "slot_claimed",
+    actorType: "customer",
+    intentEventId,
+    bookingId: booking.id,
+    eventData: { repairType, qualityTier, serviceLevel, priceCents: booking.price_cents, date, window },
+  });
 
   const deviceLabel = intent.device_model ? getDeviceModel(intent.device_model)?.name ?? getDeviceFamilyLabel(intent.device) : getDeviceFamilyLabel(intent.device);
   const windowLabel = getTimeWindowLabel(window);

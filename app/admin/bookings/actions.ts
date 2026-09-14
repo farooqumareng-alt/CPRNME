@@ -10,12 +10,14 @@ import { confirmBookingWithCapacity, setBookingStatus, listBookings, type Bookin
 import { markBookingCompleted } from "@/lib/completed-repairs-data";
 import { assignTechnician } from "@/lib/technicians-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
+import { logJobEvent } from "@/lib/job-events";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 import { getTimeWindowLabel } from "@/content/time-windows";
 
 async function requireAdmin() {
   const user = await requireAdminSession();
   if (!user) throw new Error("Not authenticated");
+  return user;
 }
 
 // Parsed as local midnight, matching the date the customer/admin picked in
@@ -30,7 +32,7 @@ function formatFriendlyDate(dateStr: string): string {
 // asked for (the form's hidden inputs), but an admin can edit the date/
 // window fields before submitting if a different time was agreed instead.
 export async function confirmBookingAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const id = String(formData.get("id"));
   const date = String(formData.get("confirmedDate"));
   const window = formData.get("confirmedWindow") as BookingWindow;
@@ -47,6 +49,15 @@ export async function confirmBookingAction(formData: FormData) {
     }
     throw new Error(error.message);
   }
+
+  await logJobEvent({
+    eventType: "booking_confirmed",
+    actorType: "admin",
+    actorId: admin.id,
+    intentEventId: booking?.intent_event_id,
+    bookingId: id,
+    eventData: { confirmedDate: date, confirmedWindow: window },
+  });
 
   // Best-effort customer notification — only reaches the subset who gave
   // an email address rather than a phone number; a failed send never
@@ -84,12 +95,13 @@ export async function confirmBookingAction(formData: FormData) {
 }
 
 export async function setBookingStatusAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const id = String(formData.get("id"));
   const status = formData.get("status") as "cancelled" | "no_show" | "requested";
   const note = (formData.get("note") as string) || null;
   const { error } = await setBookingStatus(id, status, note);
   if (error) throw new Error(error.message);
+  await logJobEvent({ eventType: "booking_status_changed", actorType: "admin", actorId: admin.id, bookingId: id, eventData: { status } });
   revalidatePath("/admin/bookings");
 }
 
@@ -99,7 +111,7 @@ export async function setBookingStatusAction(formData: FormData) {
 // the admin can (and in the real world sometimes must) enter a different
 // number, and only what they type here ever counts as revenue.
 export async function markBookingCompletedAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const id = String(formData.get("id"));
   const revenueCents = Math.round(Number(formData.get("revenue")) * 100);
   if (!Number.isFinite(revenueCents) || revenueCents < 0) {
@@ -122,15 +134,24 @@ export async function markBookingCompletedAction(formData: FormData) {
     notes,
   });
   if (error) throw new Error(error.message);
+  await logJobEvent({
+    eventType: "repair_completed",
+    actorType: "admin",
+    actorId: admin.id,
+    intentEventId: booking.intent_event_id,
+    bookingId: booking.id,
+    eventData: { agreedPriceCents: booking.price_cents, revenueCents },
+  });
   revalidatePath("/admin/bookings");
   revalidatePath("/admin/revenue");
 }
 
 export async function assignTechnicianAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const bookingId = String(formData.get("bookingId"));
   const technicianId = (formData.get("technicianId") as string) || null;
   const { error } = await assignTechnician(bookingId, technicianId || null);
   if (error) throw new Error(error.message);
+  await logJobEvent({ eventType: "technician_assigned", actorType: "admin", actorId: admin.id, bookingId, eventData: { technicianId } });
   revalidatePath("/admin/bookings");
 }

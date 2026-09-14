@@ -946,8 +946,7 @@ export function ProblemSelector() {
         <div className="selector-step quote-request">
           <h3>This one needs a quick review</h3>
           <p style={{ color: "var(--cp-ink-soft)", fontSize: "14.5px", marginBottom: "10px" }}>
-            Leave a phone number or email and we&rsquo;ll review your request and get
-            back to you as soon as possible with your repair options.
+            {resolution.customerMessage} Leave a phone number or email and we&rsquo;ll follow up.
           </p>
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-start" }}>
             <input

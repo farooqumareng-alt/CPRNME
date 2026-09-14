@@ -4,6 +4,7 @@ import { findByZip } from "@/content/dfw-territory";
 import { getDeviceModel, getModelsForFamily, type DeviceFamily } from "@/content/device-catalog";
 import { problems } from "@/content/repair-taxonomy";
 import { resolveRepairServer } from "@/lib/repair-resolution-server";
+import { logJobEvent } from "@/lib/job-events";
 
 // This route is the ONLY writer to repair_intent_events. A row here means a
 // real visitor supplied device + problem + a validly formatted ZIP and hit
@@ -134,6 +135,28 @@ export async function POST(request: Request) {
   // "diagnostic") is ever sent to the client; the underlying cost/margin
   // data in pricing_records is never queried by anything client-reachable.
   const resolution = await resolveRepairServer(validatedDeviceModel, problem);
+
+  // Best-effort, append-only history — never blocks the response. The
+  // resolution's own reasoning (see repair-resolution-server.ts) is logged
+  // verbatim, so this table accumulates real "what happened and why" data
+  // from day one, per the learning-substrate direction.
+  await logJobEvent({
+    eventType: "intent_created",
+    actorType: "customer",
+    sessionId,
+    intentEventId: inserted.id,
+    eventData: { device, deviceModel: validatedDeviceModel, problem, zip, city },
+  });
+  await logJobEvent({
+    eventType: resolution.outcome === "fixed_price" ? "resolution_fixed_price" : "resolution_diagnostic",
+    actorType: "system",
+    sessionId,
+    intentEventId: inserted.id,
+    eventData:
+      resolution.outcome === "fixed_price"
+        ? { repairType: resolution.repairType, optionCount: resolution.options.length }
+        : { reason: resolution.reason },
+  });
 
   return NextResponse.json({ ok: true, id: inserted.id, resolution }, { status: 201 });
 }

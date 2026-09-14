@@ -9,11 +9,13 @@ import { requireAdminSession } from "@/lib/supabase-session";
 import { setQuotePrice, setQuoteStatus, listQuotes, describeQuoteDevice } from "@/lib/quotes-data";
 import { markQuoteCompleted } from "@/lib/completed-repairs-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
+import { logJobEvent } from "@/lib/job-events";
 import { businessInfo } from "@/content/business-info";
 
 async function requireAdmin() {
   const user = await requireAdminSession();
   if (!user) throw new Error("Not authenticated");
+  return user;
 }
 
 // Records the real price a human decided on after reviewing the request —
@@ -21,7 +23,7 @@ async function requireAdmin() {
 // exists for. Never derived automatically; always typed in by a person
 // who looked at the actual device/problem/ZIP.
 export async function setQuotePriceAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const id = String(formData.get("id"));
   const priceCents = Math.round(Number(formData.get("price")) * 100);
   if (!Number.isFinite(priceCents) || priceCents <= 0) {
@@ -30,6 +32,15 @@ export async function setQuotePriceAction(formData: FormData) {
   const note = (formData.get("note") as string) || null;
   const { data: quote, error } = await setQuotePrice(id, priceCents, note);
   if (error) throw new Error(error.message);
+
+  await logJobEvent({
+    eventType: "quote_priced",
+    actorType: "admin",
+    actorId: admin.id,
+    intentEventId: quote?.intent_event_id,
+    quoteId: id,
+    eventData: { priceCents },
+  });
 
   // Best-effort customer notification — only reaches the subset who gave
   // an email address rather than a phone number; a failed send never
@@ -56,11 +67,12 @@ export async function setQuotePriceAction(formData: FormData) {
 }
 
 export async function setQuoteStatusAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const id = String(formData.get("id"));
   const status = formData.get("status") as "pending" | "quoted" | "accepted" | "declined" | "expired";
   const { error } = await setQuoteStatus(id, status);
   if (error) throw new Error(error.message);
+  await logJobEvent({ eventType: "quote_status_changed", actorType: "admin", actorId: admin.id, quoteId: id, eventData: { status } });
   revalidatePath("/admin/quotes");
 }
 
@@ -68,7 +80,7 @@ export async function setQuoteStatusAction(formData: FormData) {
 // and logs what was actually collected. Never inferred from the quote's
 // own price_cents — that field only defaults the form for convenience.
 export async function markQuoteCompletedAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const id = String(formData.get("id"));
   const revenueCents = Math.round(Number(formData.get("revenue")) * 100);
   if (!Number.isFinite(revenueCents) || revenueCents < 0) {
@@ -91,6 +103,14 @@ export async function markQuoteCompletedAction(formData: FormData) {
     notes,
   });
   if (error) throw new Error(error.message);
+  await logJobEvent({
+    eventType: "repair_completed",
+    actorType: "admin",
+    actorId: admin.id,
+    intentEventId: quote.intent_event_id,
+    quoteId: quote.id,
+    eventData: { agreedPriceCents: quote.price_cents, revenueCents },
+  });
   revalidatePath("/admin/quotes");
   revalidatePath("/admin/revenue");
 }

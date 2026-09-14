@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getDeviceModel, getDeviceFamilyLabel } from "@/content/device-catalog";
 import { sendEmail, renderEmailShell, ADMIN_ALERT_EMAIL, escapeHtml } from "@/lib/email";
+import { logJobEvent } from "@/lib/job-events";
 
 // Writes to repair_quotes — a real visitor opting in to be contacted about a
 // specific repair_intent_events row, nothing more. This does NOT set a
@@ -68,6 +69,14 @@ export async function POST(request: Request) {
     console.error("Failed to record quote request:", error?.message);
     return NextResponse.json({ error: "Could not record your request" }, { status: 500 });
   }
+
+  await logJobEvent({
+    eventType: "quote_requested",
+    actorType: "customer",
+    intentEventId: intentEventId,
+    quoteId: quote.id,
+    eventData: { contactMethod },
+  });
 
   // Best-effort admin alert — awaited so it completes before this
   // serverless function returns, but a failed send never fails the

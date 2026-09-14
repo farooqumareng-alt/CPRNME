@@ -3,6 +3,7 @@ import { createBookingRequest } from "@/lib/bookings-data";
 import { qualityTiers, getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 import { getDeviceModel, getDeviceFamilyLabel } from "@/content/device-catalog";
 import { sendEmail, renderEmailShell, ADMIN_ALERT_EMAIL, formatMoney, escapeHtml } from "@/lib/email";
+import { logJobEvent } from "@/lib/job-events";
 
 // Writes to bookings — a real visitor asking to reserve a preferred
 // day/window for a fixed-price repair they've already seen the real price
@@ -120,6 +121,14 @@ export async function POST(request: Request) {
     console.error("Failed to record booking request:", error?.message);
     return NextResponse.json({ error: "Could not record your request" }, { status: 500 });
   }
+
+  await logJobEvent({
+    eventType: "booking_requested",
+    actorType: "customer",
+    intentEventId: intentEventId,
+    bookingId: booking.id,
+    eventData: { repairType, qualityTier, serviceLevel, priceCents: booking.price_cents, requestedDate, requestedWindow },
+  });
 
   // Best-effort admin alert — awaited so it completes before this
   // serverless function returns (a fire-and-forget promise isn't

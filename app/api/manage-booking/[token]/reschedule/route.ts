@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { rescheduleBookingByToken } from "@/lib/bookings-data";
 import { isValidTimeWindow, MAX_ADVANCE_BOOKING_DAYS } from "@/content/time-windows";
+import { logJobEvent } from "@/lib/job-events";
 
 // Customer self-service reschedule — authorized purely by possessing the
 // unguessable token in the URL (no login system exists). See
@@ -59,6 +60,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     console.error("Failed to reschedule booking:", error?.message);
     return NextResponse.json({ error: "Could not reschedule — please try again" }, { status: 500 });
   }
+
+  await logJobEvent({
+    eventType: "booking_rescheduled_by_customer",
+    actorType: "customer",
+    intentEventId: data.intent_event_id,
+    bookingId: data.id,
+    eventData: { date: data.requested_date, window: data.requested_window },
+  });
 
   return NextResponse.json({ ok: true, date: data.requested_date, window: data.requested_window });
 }
