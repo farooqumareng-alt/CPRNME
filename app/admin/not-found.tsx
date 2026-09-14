@@ -20,6 +20,7 @@ export default function AdminNotFound() {
       <h1 style={{ fontSize: 22, fontWeight: 700, marginTop: 20 }}>Page not found</h1>
       <p style={{ marginTop: 8 }}>That admin page doesn&rsquo;t exist.</p>
       <nav style={{ display: "flex", gap: 14, fontSize: 13, marginTop: 20 }}>
+        <a href="/admin">Today</a>
         <a href="/admin/demand">Demand</a>
         <a href="/admin/pricing">Pricing</a>
         <a href="/admin/quotes">Quotes</a>

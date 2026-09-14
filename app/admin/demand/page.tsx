@@ -131,6 +131,7 @@ function AdminHeader() {
         CPRNME Admin
       </span>
       <nav style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 13 }}>
+        <a href="/admin">Today</a>
         <a href="/admin/quotes">Quotes</a>
         <a href="/admin/bookings">Bookings</a>
         <a href="/admin/pricing">Pricing</a>

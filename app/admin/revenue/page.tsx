@@ -26,6 +26,7 @@ export default async function AdminRevenuePage() {
           CPRNME Admin
         </span>
         <nav style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 13 }}>
+          <a href="/admin">Today</a>
           <a href="/admin/demand">Demand</a>
           <a href="/admin/pricing">Pricing</a>
           <a href="/admin/quotes">Quotes</a>
