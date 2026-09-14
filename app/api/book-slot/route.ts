@@ -165,7 +165,8 @@ export async function POST(request: Request) {
             </td></tr>
           </table>
           <p style="margin:0 0 6px;">${escapeHtml(getQualityTierLabel(qualityTier))} · ${escapeHtml(serviceLevel)}</p>
-          <p style="margin:0; font-size:20px; font-weight:700;">${formatMoney(booking.price_cents)}</p>
+          <p style="margin:0 0 18px; font-size:20px; font-weight:700;">${formatMoney(booking.price_cents)}</p>
+          <p style="margin:0;"><a href="https://www.cprnme.com/manage-booking/${booking.management_token}" style="color:#55565a; font-size:13px;">Need to reschedule or cancel?</a></p>
         `,
       }),
     });

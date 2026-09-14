@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/supabase-session";
 import { listBookings, describeBookingDevice, type BookingRow, type BookingWindow } from "@/lib/bookings-data";
 import { getCompletedBookingIds } from "@/lib/completed-repairs-data";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
+import { TIME_WINDOWS, getTimeWindowLabel } from "@/content/time-windows";
 import { confirmBookingAction, setBookingStatusAction, markBookingCompletedAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -119,7 +120,7 @@ function BookingCard({ booking, isCompleted }: { booking: BookingRow; isComplete
 
       {booking.status === "confirmed" && booking.confirmed_date && (
         <p style={{ fontSize: 14, marginTop: 4, color: "var(--pass, #2f6f4f)" }}>
-          Confirmed: <strong>{formatDay(booking.confirmed_date)}</strong> ({booking.confirmed_window})
+          Confirmed: <strong>{formatDay(booking.confirmed_date)}</strong> ({getTimeWindowLabel(booking.confirmed_window ?? "")})
         </p>
       )}
       {booking.admin_note && (
@@ -180,14 +181,27 @@ function BookingCard({ booking, isCompleted }: { booking: BookingRow; isComplete
           </label>
           <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
             Window
+            {/* Precise 2-hour windows, same vocabulary the real-time path
+                uses — so an admin-confirmed booking counts against the
+                same shared capacity pool instead of a separate coarse
+                bucket. The customer only ever picked a rough preference
+                (shown above as "Requested: ... (morning/afternoon/
+                evening)"); this is the admin choosing the actual real
+                slot. */}
             <select
               name="confirmedWindow"
-              defaultValue={booking.requested_window}
+              defaultValue=""
+              required
               style={{ padding: "6px 8px", border: "1px solid var(--cp-line)", borderRadius: 6 }}
             >
-              <option value="morning">Morning</option>
-              <option value="afternoon">Afternoon</option>
-              <option value="evening">Evening</option>
+              <option value="" disabled>
+                Pick a time…
+              </option>
+              {TIME_WINDOWS.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.label}
+                </option>
+              ))}
             </select>
           </label>
           <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 160 }}>

@@ -10,6 +10,7 @@ import { confirmBookingWithCapacity, setBookingStatus, listBookings, type Bookin
 import { markBookingCompleted } from "@/lib/completed-repairs-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
+import { getTimeWindowLabel } from "@/content/time-windows";
 
 async function requireAdmin() {
   const user = await requireAdminSession();
@@ -51,11 +52,12 @@ export async function confirmBookingAction(formData: FormData) {
   // undoes the confirmation that was already saved.
   if (booking && booking.contact_method === "email") {
     const friendlyDate = formatFriendlyDate(date);
+    const windowLabel = getTimeWindowLabel(window);
     await sendEmail({
       to: booking.contact_value,
       subject: "Your CPRNME appointment is confirmed",
       html: renderEmailShell({
-        preheader: `Confirmed for ${friendlyDate} (${window}) · ${formatMoney(booking.price_cents)}`,
+        preheader: `Confirmed for ${friendlyDate}, ${windowLabel} · ${formatMoney(booking.price_cents)}`,
         heading: "Your appointment is confirmed",
         showFulfillmentCredit: true,
         bodyHtml: `
@@ -64,13 +66,14 @@ export async function confirmBookingAction(formData: FormData) {
             <tr>
               <td style="padding:16px 18px;">
                 <p style="margin:0 0 4px; font-size:17px; font-weight:700; color:#202124;">${escapeHtml(friendlyDate)}</p>
-                <p style="margin:0; font-size:14px; color:#55565a; text-transform:capitalize;">${escapeHtml(window)}</p>
+                <p style="margin:0; font-size:14px; color:#55565a;">${escapeHtml(windowLabel)}</p>
               </td>
             </tr>
           </table>
           <p style="margin:0 0 6px;">${escapeHtml(getQualityTierLabel(booking.quality_tier as QualityTier))} · ${escapeHtml(booking.service_level)}</p>
           <p style="margin:0 0 18px; font-size:20px; font-weight:700;">${formatMoney(booking.price_cents)}</p>
-          ${note ? `<p style="margin:0; color:#55565a;">${escapeHtml(note)}</p>` : ""}
+          ${note ? `<p style="margin:0 0 18px; color:#55565a;">${escapeHtml(note)}</p>` : ""}
+          <p style="margin:0;"><a href="https://www.cprnme.com/manage-booking/${booking.management_token}" style="color:#55565a; font-size:13px;">Need to reschedule or cancel?</a></p>
         `,
       }),
     });
