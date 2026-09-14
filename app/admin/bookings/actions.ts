@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/supabase-session";
 import { confirmBookingWithCapacity, setBookingStatus, listBookings, type BookingWindow } from "@/lib/bookings-data";
 import { markBookingCompleted } from "@/lib/completed-repairs-data";
+import { assignTechnician } from "@/lib/technicians-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 import { getTimeWindowLabel } from "@/content/time-windows";
@@ -123,4 +124,13 @@ export async function markBookingCompletedAction(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/admin/bookings");
   revalidatePath("/admin/revenue");
+}
+
+export async function assignTechnicianAction(formData: FormData) {
+  await requireAdmin();
+  const bookingId = String(formData.get("bookingId"));
+  const technicianId = (formData.get("technicianId") as string) || null;
+  const { error } = await assignTechnician(bookingId, technicianId || null);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/bookings");
 }

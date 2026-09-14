@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     contactValue,
     requestedDate,
     requestedWindow,
+    address,
   } = body as Record<string, unknown>;
 
   if (typeof intentEventId !== "string" || intentEventId.length === 0) {
@@ -91,6 +92,10 @@ export async function POST(request: Request) {
   if (typeof requestedWindow !== "string" || !VALID_WINDOWS.has(requestedWindow)) {
     return NextResponse.json({ error: "Invalid requestedWindow" }, { status: 400 });
   }
+  if (typeof address !== "string" || address.trim().length < 5) {
+    return NextResponse.json({ error: "Enter the address for the repair" }, { status: 400 });
+  }
+  const trimmedAddress = address.trim();
 
   const { data: booking, error } = await createBookingRequest({
     intentEventId,
@@ -103,6 +108,7 @@ export async function POST(request: Request) {
     contactValue: trimmedContact,
     requestedDate,
     requestedWindow: requestedWindow as "morning" | "afternoon" | "evening",
+    address: trimmedAddress,
   });
 
   if (error || !booking) {
@@ -139,6 +145,7 @@ export async function POST(request: Request) {
       bodyHtml: `
         <p style="margin:0 0 14px;"><strong>${escapeHtml(deviceLabel)}</strong> — ${escapeHtml(intent?.problem ?? "unknown problem")}</p>
         <p style="margin:0 0 14px;">${escapeHtml(intent?.city ? `${intent.city}, ` : "")}${escapeHtml(intent?.zip_code ?? "—")}</p>
+        <p style="margin:0 0 14px;"><strong>Address:</strong> ${escapeHtml(trimmedAddress)}</p>
         <p style="margin:0 0 14px;">${escapeHtml(getQualityTierLabel(qualityTier))} · ${escapeHtml(serviceLevel)} · <strong>${formatMoney(booking.price_cents)}</strong></p>
         <p style="margin:0 0 14px;">Requested: <strong>${escapeHtml(requestedDate)}</strong> (${escapeHtml(requestedWindow)})</p>
         <p style="margin:0 0 20px;">Contact (${escapeHtml(contactMethod)}): <strong>${escapeHtml(trimmedContact)}</strong></p>

@@ -144,6 +144,9 @@ export function ProblemSelector() {
   const [bookingWindow, setBookingWindow] = useState<BookingWindow | null>(null);
   const [bookingState, setBookingState] = useState<BookingState>("idle");
   const [bookingError, setBookingError] = useState<string | null>(null);
+  // Only ever asked for once a booking is actually being made — the site
+  // never collects a full address just to record repair intent, only ZIP.
+  const [bookingAddress, setBookingAddress] = useState("");
   // Real-time slots only (see content/booking-radius.ts) — a live look at
   // actual capacity for the selected date, fetched fresh each time the
   // date changes so it never shows stale availability.
@@ -281,6 +284,11 @@ export function ProblemSelector() {
       setBookingError("Pick a preferred time of day.");
       return;
     }
+    const trimmedAddress = bookingAddress.trim();
+    if (trimmedAddress.length < 5) {
+      setBookingError("Enter the address for the repair.");
+      return;
+    }
     const contactMethod = trimmedContact.includes("@") ? "email" : "phone";
     const tierOption = resolution.options.find((o) => o.qualityTier === selectedTier);
     const serviceOption = resolution.serviceLevels.find((s) => s.level === selectedServiceLevel);
@@ -302,6 +310,7 @@ export function ProblemSelector() {
           contactValue: trimmedContact,
           requestedDate: bookingDate,
           requestedWindow: bookingWindow,
+          address: trimmedAddress,
         }),
       });
       if (res.ok) {
@@ -336,6 +345,11 @@ export function ProblemSelector() {
       setBookingError("Pick an available time.");
       return;
     }
+    const trimmedAddress = bookingAddress.trim();
+    if (trimmedAddress.length < 5) {
+      setBookingError("Enter the address for the repair.");
+      return;
+    }
     const contactMethod = trimmedContact.includes("@") ? "email" : "phone";
     const tierOption = resolution.options.find((o) => o.qualityTier === selectedTier);
     const serviceOption = resolution.serviceLevels.find((s) => s.level === selectedServiceLevel);
@@ -357,6 +371,7 @@ export function ProblemSelector() {
           contactValue: trimmedContact,
           date: bookingDate,
           window: selectedSlotWindow,
+          address: trimmedAddress,
         }),
       });
       if (res.ok) {
@@ -781,6 +796,23 @@ export function ProblemSelector() {
                 </>
               )}
 
+              <label htmlFor="slot-address" style={{ display: "block", fontSize: "13.5px", color: "var(--cp-ink-soft)", margin: "14px 0 6px" }}>
+                Address for the repair
+              </label>
+              <input
+                id="slot-address"
+                type="text"
+                autoComplete="street-address"
+                className="zip-input"
+                style={{ width: "100%", maxWidth: "320px" }}
+                placeholder="Street, apt/unit, city"
+                value={bookingAddress}
+                onChange={(e) => {
+                  setBookingAddress(e.target.value);
+                  if (bookingError) setBookingError(null);
+                }}
+              />
+
               <div style={{ marginTop: "14px" }}>
                 <button
                   type="button"
@@ -866,6 +898,23 @@ export function ProblemSelector() {
                   />
                 </>
               )}
+
+              <label htmlFor="booking-address" style={{ display: "block", fontSize: "13.5px", color: "var(--cp-ink-soft)", margin: "14px 0 6px" }}>
+                Address for the repair
+              </label>
+              <input
+                id="booking-address"
+                type="text"
+                autoComplete="street-address"
+                className="zip-input"
+                style={{ width: "100%", maxWidth: "320px" }}
+                placeholder="Street, apt/unit, city"
+                value={bookingAddress}
+                onChange={(e) => {
+                  setBookingAddress(e.target.value);
+                  if (bookingError) setBookingError(null);
+                }}
+              />
 
               <div style={{ marginTop: "14px" }}>
                 <button

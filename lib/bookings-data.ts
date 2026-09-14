@@ -43,6 +43,9 @@ export type BookingRecord = {
   admin_note: string | null;
   management_token: string;
   cancelled_by_customer: boolean;
+  address: string | null;
+  assigned_technician_id: string | null;
+  technician_status: string | null;
 };
 
 export type BookingRow = {
@@ -65,6 +68,9 @@ export type BookingRow = {
   admin_note: string | null;
   management_token: string;
   cancelled_by_customer: boolean;
+  address: string | null;
+  assigned_technician_id: string | null;
+  technician_status: string | null;
   // Joined context from the originating intent — same pattern as
   // lib/quotes-data.ts's QuoteRow.
   repair_intent_events: {
@@ -113,6 +119,7 @@ export async function createBookingRequest(input: {
   contactValue: string;
   requestedDate: string;
   requestedWindow: BookingWindow;
+  address: string;
 }) {
   const supabase = getSupabaseAdmin();
   return supabase
@@ -128,6 +135,7 @@ export async function createBookingRequest(input: {
       contact_value: input.contactValue,
       requested_date: input.requestedDate,
       requested_window: input.requestedWindow,
+      address: input.address,
     })
     // Joined intent context returned so the caller (the booking-request API
     // route) can compose a real, useful admin alert email without a second
@@ -233,6 +241,7 @@ export async function claimBookingSlot(input: {
   contactValue: string;
   date: string;
   window: string;
+  address: string;
 }) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -246,6 +255,7 @@ export async function claimBookingSlot(input: {
       p_contact_value: input.contactValue,
       p_date: input.date,
       p_window: input.window,
+      p_address: input.address,
     })
     .single();
   return { data: data as BookingRecord | null, error };
@@ -292,4 +302,23 @@ export async function rescheduleBookingByToken(token: string, date: string, wind
     p_window: window,
   });
   return { data: data as BookingRecord | null, error };
+}
+
+// A technician's own job list — scoped server-side to their own
+// assignment (not just filtered client-side), since this is the real
+// authorization boundary for what a technician can see, matching
+// setTechnicianJobStatus()'s same scoping in lib/technicians-data.ts.
+export async function listBookingsForTechnician(technicianUserId: string): Promise<BookingRow[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("*, repair_intent_events(zip_code, city, device, device_model, problem, source_page)")
+    .eq("assigned_technician_id", technicianUserId)
+    .eq("status", "confirmed")
+    .order("confirmed_date", { ascending: true });
+  if (error) {
+    console.error("Failed to load technician's bookings:", error.message);
+    return [];
+  }
+  return (data ?? []) as unknown as BookingRow[];
 }

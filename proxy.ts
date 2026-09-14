@@ -1,16 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-// Gates every /admin/* route (except the login page itself). This is the
-// only authenticated surface in CPRNME — it exists solely to protect the
-// real-data demand dashboard from public access. No public signup exists;
-// see lib/supabase-session.ts for why "logged in" == "admin" here.
+// Gates every /admin/* and /technician/* route (except the shared login
+// page). This edge check only confirms someone is logged in at all — it
+// deliberately does NOT distinguish admin from technician (that would mean
+// a second round-trip to the DB on every request just to redirect, and
+// this check is optimistic anyway, never the real authorization boundary).
+// The real role split (an explicit admins/technicians allow-list, not
+// "isn't the other role") lives in lib/supabase-session.ts's
+// requireAdminSession()/requireTechnicianSession(), which every page under
+// both trees re-checks server-side before reading or rendering anything —
+// see that file for why "logged in" stopped being the same fact as
+// "is an admin" the moment technician accounts existed.
 //
 // Named `proxy` (not `middleware`) per Next.js 16 — see
 // node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md.
-// Per that same doc, Proxy is an optimistic check, not the sole
-// authorization boundary: app/admin/demand/page.tsx independently re-checks
-// the session server-side before reading any data.
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname === "/admin/login") {
@@ -42,6 +46,14 @@ export async function proxy(request: NextRequest) {
 
   if (!user) {
     const loginUrl = new URL("/admin/login", request.url);
+    // Preserves where they were actually headed — matters more now that
+    // two roles share this one login page: without it, a technician
+    // hitting this edge redirect (no session cookie yet) would land back
+    // on /admin/login with no target, then fall through to the login
+    // page's own "/admin/demand" default after signing in — which
+    // requireAdminSession() correctly rejects for a technician, bouncing
+    // them right back to login in a confusing loop.
+    loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -49,5 +61,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/technician/:path*"],
 };

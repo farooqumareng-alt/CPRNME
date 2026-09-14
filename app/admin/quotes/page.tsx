@@ -37,6 +37,7 @@ export default async function AdminQuotesPage() {
           <a href="/admin/pricing">Pricing</a>
           <a href="/admin/bookings">Bookings</a>
           <a href="/admin/revenue">Revenue</a>
+          <a href="/admin/technicians">Technicians</a>
           <form action="/admin/logout" method="POST">
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>
               Log out

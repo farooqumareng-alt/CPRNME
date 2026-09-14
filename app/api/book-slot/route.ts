@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { intentEventId, repairType, qualityTier, serviceLevel, priceCents, contactMethod, contactValue, date, window } =
+  const { intentEventId, repairType, qualityTier, serviceLevel, priceCents, contactMethod, contactValue, date, window, address } =
     body as Record<string, unknown>;
 
   if (typeof intentEventId !== "string" || intentEventId.length === 0) {
@@ -83,6 +83,10 @@ export async function POST(request: Request) {
   if (typeof window !== "string" || !isValidTimeWindow(window)) {
     return NextResponse.json({ error: "Invalid time window" }, { status: 400 });
   }
+  if (typeof address !== "string" || address.trim().length < 5) {
+    return NextResponse.json({ error: "Enter the address for the repair" }, { status: 400 });
+  }
+  const trimmedAddress = address.trim();
 
   // Server-side re-check of the real eligibility radius — the intent
   // event's own recorded ZIP is the source of truth here, not anything
@@ -110,6 +114,7 @@ export async function POST(request: Request) {
     contactValue: trimmedContact,
     date,
     window,
+    address: trimmedAddress,
   });
 
   if (error || !booking) {
@@ -139,6 +144,7 @@ export async function POST(request: Request) {
       bodyHtml: `
         <p style="margin:0 0 14px;"><strong>${escapeHtml(deviceLabel)}</strong> — ${escapeHtml(intent.problem)}</p>
         <p style="margin:0 0 14px;">${escapeHtml(intent.city ? `${intent.city}, ` : "")}${escapeHtml(intent.zip_code)}</p>
+        <p style="margin:0 0 14px;"><strong>Address:</strong> ${escapeHtml(trimmedAddress)}</p>
         <p style="margin:0 0 14px;">${escapeHtml(getQualityTierLabel(qualityTier))} · ${escapeHtml(serviceLevel)} · <strong>${formatMoney(booking.price_cents)}</strong></p>
         <p style="margin:0 0 20px;">Confirmed: <strong>${escapeHtml(date)}</strong>, ${escapeHtml(windowLabel)}</p>
         <p style="margin:0;"><a href="https://www.cprnme.com/admin/bookings" style="display:inline-block; padding:10px 18px; background-color:#2e2f33; color:#ffffff; border-radius:6px; text-decoration:none; font-weight:600; font-size:14px;">View in /admin/bookings</a></p>

@@ -2,9 +2,10 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/supabase-session";
 import { listBookings, describeBookingDevice, type BookingRow, type BookingWindow } from "@/lib/bookings-data";
 import { getCompletedBookingIds } from "@/lib/completed-repairs-data";
+import { listTechnicians, type TechnicianRow } from "@/lib/technicians-data";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 import { TIME_WINDOWS, getTimeWindowLabel } from "@/content/time-windows";
-import { confirmBookingAction, setBookingStatusAction, markBookingCompletedAction } from "./actions";
+import { confirmBookingAction, setBookingStatusAction, markBookingCompletedAction, assignTechnicianAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,13 @@ const STATUS_ORDER: Record<BookingRow["status"], number> = {
   rescheduled: 2,
   no_show: 3,
   cancelled: 4,
+};
+
+const TECHNICIAN_STATUS_LABELS: Record<string, string> = {
+  assigned: "Assigned",
+  en_route: "En route",
+  in_progress: "In progress",
+  done: "Done",
 };
 
 function capitalize(s: string): string {
@@ -34,7 +42,7 @@ export default async function AdminBookingsPage() {
   const user = await requireAdminSession();
   if (!user) redirect("/admin/login?redirect=/admin/bookings");
 
-  const [bookings, completedIds] = await Promise.all([listBookings(), getCompletedBookingIds()]);
+  const [bookings, completedIds, technicians] = await Promise.all([listBookings(), getCompletedBookingIds(), listTechnicians()]);
   const sorted = [...bookings].sort((a, b) => {
     const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
     if (statusDiff !== 0) return statusDiff;
@@ -53,6 +61,7 @@ export default async function AdminBookingsPage() {
           <a href="/admin/pricing">Pricing</a>
           <a href="/admin/quotes">Quotes</a>
           <a href="/admin/revenue">Revenue</a>
+          <a href="/admin/technicians">Technicians</a>
           <form action="/admin/logout" method="POST">
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>
               Log out
@@ -79,7 +88,7 @@ export default async function AdminBookingsPage() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 24 }}>
           {sorted.map((b) => (
-            <BookingCard key={b.id} booking={b} isCompleted={completedIds.has(b.id)} />
+            <BookingCard key={b.id} booking={b} isCompleted={completedIds.has(b.id)} technicians={technicians} />
           ))}
         </div>
       )}
@@ -87,7 +96,7 @@ export default async function AdminBookingsPage() {
   );
 }
 
-function BookingCard({ booking, isCompleted }: { booking: BookingRow; isCompleted: boolean }) {
+function BookingCard({ booking, isCompleted, technicians }: { booking: BookingRow; isCompleted: boolean; technicians: TechnicianRow[] }) {
   const intent = booking.repair_intent_events;
   const deviceLabel = describeBookingDevice(booking);
 
@@ -113,6 +122,11 @@ function BookingCard({ booking, isCompleted }: { booking: BookingRow; isComplete
       <p style={{ fontSize: 14, marginTop: 4 }}>
         Contact ({booking.contact_method}): <strong>{booking.contact_value}</strong>
       </p>
+      {booking.address && (
+        <p style={{ fontSize: 14, marginTop: 4 }}>
+          Address: <strong>{booking.address}</strong>
+        </p>
+      )}
       <p style={{ fontSize: 14, marginTop: 4, color: "var(--cp-ink-soft)" }}>
         Requested: <strong style={{ color: "var(--cp-ink)" }}>{formatDay(booking.requested_date)}</strong>{" "}
         ({booking.requested_window})
@@ -125,6 +139,34 @@ function BookingCard({ booking, isCompleted }: { booking: BookingRow; isComplete
       )}
       {booking.admin_note && (
         <p style={{ fontSize: 13, marginTop: 4, color: "var(--cp-ink-soft)" }}>Note: {booking.admin_note}</p>
+      )}
+
+      {booking.status === "confirmed" && !isCompleted && (
+        <form action={assignTechnicianAction} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
+          <input type="hidden" name="bookingId" value={booking.id} />
+          <label style={{ fontSize: 13, color: "var(--cp-ink-soft)" }}>Technician:</label>
+          <select
+            name="technicianId"
+            defaultValue={booking.assigned_technician_id ?? ""}
+            style={{ padding: "5px 8px", border: "1px solid var(--cp-line)", borderRadius: 6, fontSize: 13 }}
+          >
+            <option value="">Unassigned</option>
+            {technicians.map((t) => (
+              <option key={t.user_id} value={t.user_id}>
+                {t.name}
+                {t.active ? "" : " (inactive)"}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="btn btn-secondary" style={{ fontSize: 12, padding: "5px 12px" }}>
+            Save
+          </button>
+          {booking.technician_status && (
+            <span style={{ fontSize: 12.5, color: "var(--cp-ink-soft)" }}>
+              Status: <strong style={{ color: "var(--cp-ink)" }}>{TECHNICIAN_STATUS_LABELS[booking.technician_status] ?? booking.technician_status}</strong>
+            </span>
+          )}
+        </form>
       )}
 
       {isCompleted && (
