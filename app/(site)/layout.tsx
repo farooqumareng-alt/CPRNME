@@ -14,7 +14,11 @@ import { OrganizationSchema } from "@/components/OrganizationSchema";
 // split is resolved at build time by which files live in which folder.
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    // .site-shell reserves bottom space for the fixed MobileCtaBar below —
+    // see app/globals.css. Scoped to this wrapper (not the bare <body> in
+    // the true root layout) so /admin/* and /technician/*, which render no
+    // such bar, don't carry the same dead space.
+    <div className="site-shell">
       <OrganizationSchema />
       <a className="skip-link" href="#main-content">
         Skip to content
@@ -23,6 +27,6 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <main id="main-content">{children}</main>
       <SiteFooter />
       <MobileCtaBar />
-    </>
+    </div>
   );
 }

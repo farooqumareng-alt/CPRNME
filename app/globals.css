@@ -50,10 +50,17 @@ body {
   font-family: var(--font-body), system-ui, sans-serif;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  padding-bottom: 76px; /* keeps content clear of the fixed mobile CTA bar */
+}
+/* Reserves space for the fixed mobile CTA bar — scoped to .site-shell
+   (wraps only the public marketing site's chrome, app/(site)/layout.tsx)
+   rather than the bare body, since /admin/* and /technician/* render no
+   such bar and were getting 76px of dead space at the bottom of every
+   page for nothing. */
+.site-shell {
+  padding-bottom: 76px;
 }
 @media (min-width: 900px) {
-  body {
+  .site-shell {
     padding-bottom: 0;
   }
 }

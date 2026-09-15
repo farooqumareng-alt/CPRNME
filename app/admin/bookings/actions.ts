@@ -6,7 +6,7 @@
 // mutation never trusts the edge check alone.
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/supabase-session";
-import { confirmBookingWithCapacity, setBookingStatus, listBookings, type BookingWindow } from "@/lib/bookings-data";
+import { confirmBookingWithCapacity, setBookingStatus, listBookings } from "@/lib/bookings-data";
 import { markBookingCompleted } from "@/lib/completed-repairs-data";
 import { assignTechnician } from "@/lib/technicians-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
@@ -14,7 +14,7 @@ import { logJobEvent } from "@/lib/job-events";
 import { maybeSendBookingPaymentLink } from "@/lib/payment-trigger";
 import { createPaymentLink } from "@/lib/payments-data";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
-import { getTimeWindowLabel } from "@/content/time-windows";
+import { getTimeWindowLabel, isValidTimeWindow } from "@/content/time-windows";
 
 async function requireAdmin() {
   const user = await requireAdminSession();
@@ -37,9 +37,14 @@ export async function confirmBookingAction(formData: FormData) {
   const admin = await requireAdmin();
   const id = String(formData.get("id"));
   const date = String(formData.get("confirmedDate"));
-  const window = formData.get("confirmedWindow") as BookingWindow;
+  // A precise 2-hour window id (e.g. "06:00-08:00"), not the coarse
+  // morning/afternoon/evening the customer originally requested — see the
+  // note below on the confirm form. This was previously validated against
+  // the coarse list, which rejected every real submission from the form's
+  // TIME_WINDOWS-populated <select>; caught live, fixed here.
+  const window = String(formData.get("confirmedWindow"));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Invalid date");
-  if (!["morning", "afternoon", "evening"].includes(window)) throw new Error("Invalid window");
+  if (!isValidTimeWindow(window)) throw new Error("Invalid window");
   const note = (formData.get("note") as string) || null;
   // Routed through the same capacity-checked function the real-time path
   // uses, so the shared 3-per-window cap holds either way — see
