@@ -32,7 +32,12 @@ export type JobEventType =
   // repair funnel, but a real audit trail of who changed the taxonomy
   // and when is worth keeping in the same append-only log rather than
   // a separate one.
-  | "device_added";
+  | "device_added"
+  // Real Stripe activity — logged from the webhook only, since that's
+  // the one place a payment's true status is ever known.
+  | "payment_link_created"
+  | "payment_succeeded"
+  | "payment_failed";
 
 export async function logJobEvent(input: {
   eventType: JobEventType;

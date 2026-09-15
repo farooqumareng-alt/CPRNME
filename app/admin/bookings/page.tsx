@@ -5,7 +5,7 @@ import { getCompletedBookingIds } from "@/lib/completed-repairs-data";
 import { listTechnicians, type TechnicianRow } from "@/lib/technicians-data";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 import { TIME_WINDOWS, getTimeWindowLabel } from "@/content/time-windows";
-import { confirmBookingAction, setBookingStatusAction, markBookingCompletedAction, assignTechnicianAction } from "./actions";
+import { confirmBookingAction, setBookingStatusAction, markBookingCompletedAction, assignTechnicianAction, sendBookingPaymentLinkAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +64,7 @@ export default async function AdminBookingsPage() {
           <a href="/admin/revenue">Revenue</a>
           <a href="/admin/technicians">Technicians</a>
           <a href="/admin/taxonomy">Taxonomy</a>
+          <a href="/admin/payments">Payments</a>
           <form action="/admin/logout" method="POST">
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>
               Log out
@@ -173,6 +174,40 @@ function BookingCard({ booking, isCompleted, technicians }: { booking: BookingRo
 
       {isCompleted && (
         <p style={{ fontSize: 14, marginTop: 8, fontWeight: 700, color: "var(--pass, #2f6f4f)" }}>✓ Repair completed</p>
+      )}
+
+      {booking.status === "confirmed" && !isCompleted && booking.contact_method === "email" && (
+        <form
+          action={sendBookingPaymentLinkAction}
+          style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 10, padding: 12, border: "1px dashed var(--cp-line-strong)", borderRadius: 8 }}
+        >
+          <input type="hidden" name="bookingId" value={booking.id} />
+          <input type="hidden" name="contactEmail" value={booking.contact_value} />
+          <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
+            Send payment link — amount ($)
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={(booking.price_cents / 100).toFixed(2)}
+              required
+              style={{ padding: "6px 8px", border: "1px solid var(--cp-line)", borderRadius: 6, width: 110 }}
+            />
+          </label>
+          <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
+            Purpose
+            <select name="purpose" defaultValue="full" style={{ padding: "6px 8px", border: "1px solid var(--cp-line)", borderRadius: 6 }}>
+              <option value="full">Full</option>
+              <option value="deposit">Deposit</option>
+              <option value="balance">Balance</option>
+              <option value="completion">Completion</option>
+            </select>
+          </label>
+          <button type="submit" className="btn btn-secondary" style={{ fontSize: 12, padding: "6px 12px" }}>
+            Send link
+          </button>
+        </form>
       )}
 
       {booking.status === "confirmed" && !isCompleted && (

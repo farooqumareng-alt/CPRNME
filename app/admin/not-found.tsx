@@ -28,6 +28,7 @@ export default function AdminNotFound() {
         <a href="/admin/revenue">Revenue</a>
         <a href="/admin/technicians">Technicians</a>
         <a href="/admin/taxonomy">Taxonomy</a>
+        <a href="/admin/payments">Payments</a>
       </nav>
     </main>
   );

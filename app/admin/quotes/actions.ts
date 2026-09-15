@@ -11,6 +11,7 @@ import { markQuoteCompleted } from "@/lib/completed-repairs-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
 import { logJobEvent } from "@/lib/job-events";
 import { businessInfo } from "@/content/business-info";
+import { createPaymentLink } from "@/lib/payments-data";
 
 async function requireAdmin() {
   const user = await requireAdminSession();
@@ -113,4 +114,43 @@ export async function markQuoteCompletedAction(formData: FormData) {
   });
   revalidatePath("/admin/quotes");
   revalidatePath("/admin/revenue");
+}
+
+// Same manual mechanism as app/admin/bookings/actions.ts's
+// sendBookingPaymentLinkAction — quotes have no automatic trigger since
+// acceptance happens by phone/email, not through a booking flow.
+export async function sendQuotePaymentLinkAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const quoteId = String(formData.get("quoteId"));
+  const amountCents = Math.round(Number(formData.get("amount")) * 100);
+  if (!Number.isFinite(amountCents) || amountCents <= 0) throw new Error("Amount must be a positive number");
+  const purpose = formData.get("purpose") as "full" | "deposit" | "balance" | "completion";
+  const email = String(formData.get("contactEmail"));
+
+  const result = await createPaymentLink({
+    quoteId,
+    amountCents,
+    purpose,
+    description: "CPRNME repair payment",
+    customerEmail: email,
+  });
+  if ("error" in result) throw new Error(result.error);
+
+  await logJobEvent({ eventType: "payment_link_created", actorType: "admin", actorId: admin.id, quoteId, eventData: { amountCents, purpose } });
+
+  await sendEmail({
+    to: email,
+    subject: "Your CPRNME payment link",
+    html: renderEmailShell({
+      preheader: `${formatMoney(amountCents)} due for your repair`,
+      heading: "Payment requested",
+      showFulfillmentCredit: true,
+      bodyHtml: `
+        <p style="margin:0 0 18px; font-size:24px; font-weight:700;">${formatMoney(amountCents)}</p>
+        <p style="margin:0;"><a href="${escapeHtml(result.url)}" style="display:inline-block; padding:10px 18px; background-color:#2e2f33; color:#ffffff; border-radius:6px; text-decoration:none; font-weight:600; font-size:14px;">Pay now</a></p>
+      `,
+    }),
+  });
+
+  revalidatePath("/admin/quotes");
 }

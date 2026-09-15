@@ -11,6 +11,8 @@ import { markBookingCompleted } from "@/lib/completed-repairs-data";
 import { assignTechnician } from "@/lib/technicians-data";
 import { sendEmail, renderEmailShell, formatMoney, escapeHtml } from "@/lib/email";
 import { logJobEvent } from "@/lib/job-events";
+import { maybeSendBookingPaymentLink } from "@/lib/payment-trigger";
+import { createPaymentLink } from "@/lib/payments-data";
 import { getQualityTierLabel, type QualityTier } from "@/content/quality-tiers";
 import { getTimeWindowLabel } from "@/content/time-windows";
 
@@ -91,6 +93,16 @@ export async function confirmBookingAction(formData: FormData) {
     });
   }
 
+  if (booking) {
+    await maybeSendBookingPaymentLink({
+      id: booking.id,
+      price_cents: booking.price_cents,
+      contact_method: booking.contact_method,
+      contact_value: booking.contact_value,
+      intent_event_id: booking.intent_event_id,
+    });
+  }
+
   revalidatePath("/admin/bookings");
 }
 
@@ -153,5 +165,45 @@ export async function assignTechnicianAction(formData: FormData) {
   const { error } = await assignTechnician(bookingId, technicianId || null);
   if (error) throw new Error(error.message);
   await logJobEvent({ eventType: "technician_assigned", actorType: "admin", actorId: admin.id, bookingId, eventData: { technicianId } });
+  revalidatePath("/admin/bookings");
+}
+
+// Manual counterpart to lib/payment-trigger.ts's automatic link — this is
+// the "give admin a send payment link option" for at_completion mode (the
+// default), or for any ad-hoc amount (e.g. a balance after a deposit).
+// Never marks anything paid itself — only the Stripe webhook does that.
+export async function sendBookingPaymentLinkAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const bookingId = String(formData.get("bookingId"));
+  const amountCents = Math.round(Number(formData.get("amount")) * 100);
+  if (!Number.isFinite(amountCents) || amountCents <= 0) throw new Error("Amount must be a positive number");
+  const purpose = formData.get("purpose") as "full" | "deposit" | "balance" | "completion";
+  const email = String(formData.get("contactEmail"));
+
+  const result = await createPaymentLink({
+    bookingId,
+    amountCents,
+    purpose,
+    description: "CPRNME repair payment",
+    customerEmail: email,
+  });
+  if ("error" in result) throw new Error(result.error);
+
+  await logJobEvent({ eventType: "payment_link_created", actorType: "admin", actorId: admin.id, bookingId, eventData: { amountCents, purpose } });
+
+  await sendEmail({
+    to: email,
+    subject: "Your CPRNME payment link",
+    html: renderEmailShell({
+      preheader: `${formatMoney(amountCents)} due for your repair`,
+      heading: "Payment requested",
+      showFulfillmentCredit: true,
+      bodyHtml: `
+        <p style="margin:0 0 18px; font-size:24px; font-weight:700;">${formatMoney(amountCents)}</p>
+        <p style="margin:0;"><a href="${escapeHtml(result.url)}" style="display:inline-block; padding:10px 18px; background-color:#2e2f33; color:#ffffff; border-radius:6px; text-decoration:none; font-weight:600; font-size:14px;">Pay now</a></p>
+      `,
+    }),
+  });
+
   revalidatePath("/admin/bookings");
 }

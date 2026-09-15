@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/supabase-session";
 import { listQuotes, describeQuoteDevice, type QuoteRow } from "@/lib/quotes-data";
 import { getCompletedQuoteIds } from "@/lib/completed-repairs-data";
-import { setQuotePriceAction, setQuoteStatusAction, markQuoteCompletedAction } from "./actions";
+import { setQuotePriceAction, setQuoteStatusAction, markQuoteCompletedAction, sendQuotePaymentLinkAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +40,7 @@ export default async function AdminQuotesPage() {
           <a href="/admin/revenue">Revenue</a>
           <a href="/admin/technicians">Technicians</a>
           <a href="/admin/taxonomy">Taxonomy</a>
+          <a href="/admin/payments">Payments</a>
           <form action="/admin/logout" method="POST">
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 14px" }}>
               Log out
@@ -134,6 +135,40 @@ function QuoteCard({ quote, isCompleted }: { quote: QuoteRow; isCompleted: boole
 
       {isCompleted && (
         <p style={{ fontSize: 14, marginTop: 8, fontWeight: 700, color: "var(--pass, #2f6f4f)" }}>✓ Repair completed</p>
+      )}
+
+      {quote.status === "accepted" && !isCompleted && quote.contact_method === "email" && (
+        <form
+          action={sendQuotePaymentLinkAction}
+          style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 10, padding: 12, border: "1px dashed var(--cp-line-strong)", borderRadius: 8 }}
+        >
+          <input type="hidden" name="quoteId" value={quote.id} />
+          <input type="hidden" name="contactEmail" value={quote.contact_value} />
+          <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
+            Send payment link — amount ($)
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={quote.price_cents !== null ? (quote.price_cents / 100).toFixed(2) : ""}
+              required
+              style={{ padding: "6px 8px", border: "1px solid var(--cp-line)", borderRadius: 6, width: 110 }}
+            />
+          </label>
+          <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
+            Purpose
+            <select name="purpose" defaultValue="full" style={{ padding: "6px 8px", border: "1px solid var(--cp-line)", borderRadius: 6 }}>
+              <option value="full">Full</option>
+              <option value="deposit">Deposit</option>
+              <option value="balance">Balance</option>
+              <option value="completion">Completion</option>
+            </select>
+          </label>
+          <button type="submit" className="btn btn-secondary" style={{ fontSize: 12, padding: "6px 12px" }}>
+            Send link
+          </button>
+        </form>
       )}
 
       {quote.status === "accepted" && !isCompleted && (

@@ -7,6 +7,7 @@ import { qualityTiers, getQualityTierLabel, type QualityTier } from "@/content/q
 import { getDeviceModel, getDeviceFamilyLabel } from "@/content/device-catalog";
 import { sendEmail, renderEmailShell, ADMIN_ALERT_EMAIL, formatMoney, escapeHtml } from "@/lib/email";
 import { logJobEvent } from "@/lib/job-events";
+import { maybeSendBookingPaymentLink } from "@/lib/payment-trigger";
 
 // Real-time, instant-confirm booking — the customer's ZIP must be within
 // content/booking-radius.ts's real eligibility radius (re-checked here,
@@ -186,6 +187,14 @@ export async function POST(request: Request) {
       }),
     });
   }
+
+  await maybeSendBookingPaymentLink({
+    id: booking.id,
+    price_cents: booking.price_cents,
+    contact_method: booking.contact_method,
+    contact_value: booking.contact_value,
+    intent_event_id: intentEventId,
+  });
 
   return NextResponse.json({ ok: true, confirmedDate: date, confirmedWindow: windowLabel }, { status: 201 });
 }
