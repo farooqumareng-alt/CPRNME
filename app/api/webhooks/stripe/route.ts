@@ -12,8 +12,12 @@ import { logJobEvent } from "@/lib/job-events";
 // is required here.
 export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
+  if (!signature) {
+    return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
+  }
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!signature || !webhookSecret) {
+  if (!webhookSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET is not set — cannot verify webhook");
     return NextResponse.json({ error: "Webhook not configured" }, { status: 500 });
   }
 
